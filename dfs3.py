@@ -80,7 +80,7 @@ def main():
     # Si es la primera vez, registramos el nodo en la red
     if is_new:
         # workaround temporal para que el nodo vea su propio mensaje mqtt
-        register_client(config['node_id'])
+        register_client()
 
         LOG("Node created successfully. Publishing registration event...")
         event = build_node_registered_event()

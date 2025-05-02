@@ -34,8 +34,10 @@ Created: 2025-05-01
 
 import json
 import paho.mqtt.client as mqtt
+
 from config.settings import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
 from utils.logger import LOG, ERR, DBG
+from core import context
 
 
 def publish_event(block_id: str, event: dict):
@@ -72,9 +74,31 @@ def publish_event(block_id: str, event: dict):
         ERR(f"Failed to send block ID over MQTT: {e}")
 
 
-def register_client(client_id: str):
+def register_client():
+    """
+    Register the current node as a persistent MQTT client and subscribe to the network topic.
+
+    This function creates an MQTT client with a persistent session (clean_session=False)
+    using the node ID as the client identifier. It connects to the MQTT broker, subscribes
+    to the designated topic with QoS level 1 to ensure reliable message delivery, and
+    briefly enters the loop to initialize the connection before disconnecting.
+
+    Note:
+        This function is typically used during node registration or network bootstrapping
+        to announce presence or ensure subscription status.
+
+    Raises:
+        KeyError: If 'node_id' is missing from the configuration context.
+        socket.error: If the MQTT broker is unreachable.
+        mqtt.MQTTException: For general client-related errors.
+    """
+
     # Crear cliente, client_id y clean_session=False para que sea persistente
-    client = mqtt.Client(client_id=client_id, clean_session=False)
+    client = mqtt.Client(
+        client_id=context.config['node_id'], 
+        clean_session=False
+    )
+
     client.connect(MQTT_BROKER, MQTT_PORT)
     client.subscribe(MQTT_TOPIC, qos=1)
     client.loop()
