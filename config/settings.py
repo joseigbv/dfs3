@@ -70,3 +70,6 @@ IOTA_NODE_URL = os.getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/
 # Puerto en el que se ejecuta el servicio
 PORT = os.getenv("DFS3_PORT", 1234)
 
+# Cada cuanto actualizamos el estado del nodo
+UPDATE_STATUS_INTERVAL = os.getenv("DFS3_UPDATE_STATUS_INTERVAL", 300)
+

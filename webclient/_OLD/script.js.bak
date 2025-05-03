@@ -1,0 +1,152 @@
+import { 
+  sha512 
+} from 'https://esm.sh/@noble/hashes/sha512';
+
+import { 
+  getPublicKey, 
+  utils, 
+  etc, 
+  signAsync 
+} from 'https://esm.sh/@noble/ed25519';
+
+// Esto es obligatorio: (fallo en chrome)
+etc.sha512Sync = sha512;
+
+// Accedemos a jQuery como global, necesario para combinar module?
+const $ = window.$; 
+
+
+// ---
+// funciones auxiliares
+// ---
+
+function bufferToBase64(buf) {
+  return btoa(String.fromCharCode(...buf));
+}
+
+
+function base64ToBuffer(b64) {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
+
+async function getKeyMaterial(password) {
+  const enc = new TextEncoder();
+  return window.crypto.subtle.importKey(
+    "raw",
+    enc.encode(password), 
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"] 
+  );  
+}
+
+
+async function deriveKey(keyMaterial, salt) {
+  return window.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100_000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+
+// Genera claves y devuelve ambas
+async function generateKeys(password) {
+  const privateKey = utils.randomPrivateKey();
+  const publicKey = await getPublicKey(privateKey);
+  return { publicKey, privateKey };
+}
+
+
+// Guarda claves en localStorage
+async function saveUserKeysToStorage(publicKey, privateKey, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const keyMaterial = await getKeyMaterial(password);
+  const aesKey = await deriveKey(keyMaterial, salt);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, privateKey);
+
+  const data = {
+    public_key: bufferToBase64(publicKey),
+    encrypted_private_key: bufferToBase64(new Uint8Array(ciphertext)),
+    salt: bufferToBase64(salt),
+    iv: bufferToBase64(iv),
+    version: "1.0"
+  };
+  localStorage.setItem('dfs3_user_keys', JSON.stringify(data));
+}
+
+
+// SHA-256 en base64 para input
+async function sha256Base64(input) {
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return bufferToBase64(new Uint8Array(digest));
+}
+
+
+// Devuelve el hash SHA-256 en hexadecimal plano
+async function sha256Hex(input) {
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+
+// ---
+// main
+// ---
+
+$(function () {
+
+  // Manejo del botón de registro
+  $('#register-btn').on('click', async () => {
+    const alias = $('#alias').val()?.trim();
+    const fullname = $('#fullname').val()?.trim();
+    const email = $('#email').val()?.trim();
+    const pass1 = $('#password1').val();
+    const pass2 = $('#password2').val();
+
+    if (pass1 !== pass2) {
+      alert('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (!alias || !pass1) {
+      alert('Todos los campos son obligatorios');
+      return;
+    }
+
+    try {
+      const { publicKey, privateKey } = await generateKeys(pass1);
+      const userId = await sha256Hex(publicKey);
+
+      // Guarda la clave privada cifrada en localStorage
+      await saveUserKeysToStorage(publicKey, privateKey, pass1);
+
+      // Muestra lo que se enviaría al servidor
+      console.log("Datos de registro:");
+      console.log({
+        user_id: userId,
+        alias,
+        name: fullname,
+        email,
+        public_key: bufferToBase64(publicKey)
+      });
+
+      // volvemos a la pagina de login
+      window.location.href = 'index.html';
+
+    } catch (e) {
+      alert('Error durante el registro');
+    }
+  });
+});

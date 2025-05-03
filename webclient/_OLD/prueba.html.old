@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>dfs3 - Cliente Web</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script type="module" src="script.js"></script>
+</head>
+<body>
+  <h1>Claves</h1>
+  <input type="password" id="password" placeholder="Introduce tu contraseña" />
+  <button id="btn-init">Generar claves</button>
+  <button id="btn-load">Cargar clave privada</button>
+  <button id="btn-sign">Firmar challenge</button>
+  <pre id="output"></pre>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

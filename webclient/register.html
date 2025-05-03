@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registro DFS3</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script type="module" src="register.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    input { margin: 0.3em 0; display: block; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Registro de usuario DFS3</h1>
+  <div id="register-form" class="hidden">
+    <label>Alias (*): <input type="text" id="alias" /></label>
+    <label>Nombre completo: <input type="text" id="fullname" /></label>
+    <label>Email: <input type="email" id="email" /></label>
+    <label>Contraseña (*): <input type="password" id="password1" /></label>
+    <label>Repite contraseña (*): <input type="password" id="password2" /></label>
+    <br>
+    <button id="register-btn">Registrar</button>
+    <br>
+    <p class="error" id="error-msg"></p>
+    <pre id="output"></pre>
+    <br>
+    <p><small>Los campos marcados con (*) son obligatorios</small></p>
+  </div>
+</body>
+</html>

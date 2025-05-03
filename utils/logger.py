@@ -66,7 +66,7 @@ def ERR(msg):
         msg: The error message to log.
     """
 
-    print(f"[ERROR] {msg}")
+    print(f"[ERR] {msg}")
     sys.exit(1)
 
 

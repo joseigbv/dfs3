@@ -35,16 +35,28 @@ Created: 2025-04-30
 
 import time
 import getpass
+
 from utils.logger import LOG, WRN, ERR, DBG
+from config.settings import UPDATE_STATUS_INTERVAL
 from core.db_init import create_db
+from core.events import publish_event, build_node_registered_event, build_node_status_event
+from core.nodes import init_or_load_node
+from core import context
 from mqtt.listener import start_listener
 from mqtt.client import register_client
-from core.nodes import init_or_load_node
-from core.events import publish_event, build_node_registered_event, build_node_status_event
-from core import context
 
 
 def show_banner():
+    """
+    Display the dfs3 system banner in the console.
+
+    This function prints a formatted text banner or logo representing the dfs3
+    system. It is typically called at startup to provide a visual cue that the
+    node or application has launched correctly.
+
+    This is a purely cosmetic/logging function and does not return anything.
+    """
+
     print(r"""
   ____  _____ ____ _____ 
  |  _ \|  ___/ ___|___ / 
@@ -52,7 +64,7 @@ def show_banner():
  | |_| |  _|  ___) |__) |
  |____/|_|   |____/____/
                              
-  DFS3 Distributed File System Web3 v1.0
+  DFS3 0.1 - Distributed File Storage System for IoT with Blockchain
   Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 """)
 
@@ -79,7 +91,7 @@ def main():
 
     # Si es la primera vez, registramos el nodo en la red
     if is_new:
-        # workaround temporal para que el nodo vea su propio mensaje mqtt
+        # workaround para que el nodo vea su propio mensaje 
         register_client()
 
         LOG("Node created successfully. Publishing registration event...")
@@ -88,17 +100,13 @@ def main():
 
     LOG(f"Node ID: {config['node_id']} loaded and ready")
 
-    # ... seguir con inicialización de nodos, eventos, etc.
-    # pendiente ...
-
     # Levantamos el listener mqtt para responder a los eventos
     start_listener()
 
     # Aquí dejamos corriendo procesos o servicios adicionales
     try:
-        # Bloqueo para mantener el proceso activo
         while True:
-            time.sleep(5)  
+            time.sleep(UPDATE_STATUS_INTERVAL)  
 
             LOG("Update node status...")
             event = build_node_status_event()

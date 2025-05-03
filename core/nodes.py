@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Module: nodes.py
 Description: Manages creation and loading of node identity and secure config.
@@ -7,7 +6,6 @@ License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -31,16 +29,15 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import os
-import base64
 import hashlib
 import datetime
 import json
 import getpass
 import sqlite3
 
+from base64 import b64encode
 from nacl.signing import SigningKey
 from nacl.encoding import RawEncoder
 from nacl.secret import SecretBox
@@ -54,12 +51,13 @@ from utils.time import iso_to_epoch
 from config.settings import CONFIG_PATH, DATA_DIR, DB_FILE, PORT
 
 
-def derive_seed_from_passphrase(passphrase: str, salt: bytes) -> bytes:
+def derive_key_from_passphrase(passphrase: str) -> bytes:
     """
     Derives a 32-byte seed from the user's passphrase and salt using Argon2id.
     """
-
-    return argon2id.kdf(
+    
+    salt = nacl_random(16)
+    key = argon2id.kdf(
         SecretBox.KEY_SIZE,
         passphrase.encode(),
         salt,
@@ -67,23 +65,22 @@ def derive_seed_from_passphrase(passphrase: str, salt: bytes) -> bytes:
         memlimit=argon2id.MEMLIMIT_MODERATE
     )
 
+    return key, salt
+
 
 def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tuple[dict, bytes]:
     """
     Generates a new Ed25519 keypair and returns all data needed for config.json.
     """
 
-    # salt used to derive private key deterministically
-    salt_private_key = nacl_random(16)
-    seed = derive_seed_from_passphrase(passphrase, salt_private_key)
+    # seed used to derive private key deterministically
+    seed, salt_private_key = derive_key_from_passphrase(passphrase)
     signing_key = SigningKey(seed)
-    verify_key = signing_key.verify_key
-    public_key_bytes = verify_key.encode(encoder=RawEncoder)
+    public_key_bytes = signing_key.verify_key.encode(encoder=RawEncoder)
     node_id = hashlib.sha256(public_key_bytes).hexdigest()
 
     # salt used to encrypt private key for validation and secure storage
-    salt_encryption = nacl_random(16)
-    secret_key = derive_seed_from_passphrase(passphrase, salt_encryption)
+    secret_key, salt_encryption = derive_key_from_passphrase(passphrase)
     box = SecretBox(secret_key)
     encrypted_private_key = box.encrypt(signing_key.encode(), encoder=RawEncoder)
 
@@ -96,10 +93,10 @@ def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tupl
         "port": PORT,
         "tags": tags,
         "keys": {
-            "salt_private_key": base64.b64encode(salt_private_key).decode(),
-            "salt_encryption": base64.b64encode(salt_encryption).decode(),
-            "public_key": base64.b64encode(public_key_bytes).decode(),
-            "private_key_encrypted": base64.b64encode(encrypted_private_key).decode()
+            "salt_private_key": b64encode(salt_private_key).decode(),
+            "salt_encryption": b64encode(salt_encryption).decode(),
+            "public_key": b64encode(public_key_bytes).decode(),
+            "private_key_encrypted": b64encode(encrypted_private_key).decode()
         }
     }
 
@@ -139,15 +136,15 @@ def init_or_load_node(config_path: str = CONFIG_PATH) -> tuple[dict, bytes, bool
             break
 
         else:
-            print("[ERR] Passphrases do not match. Please try again.")
+            print("Passphrases do not match. Please try again.")
 
-    # Si el nodo no esta registrado, genera un fichero de configuracion y devuelve  
+    # Si el nodo no esta registrado, genera un fichero de configuracion
     alias = input("Enter a friendly alias for this node: ").strip()
     tags_input = input("Enter tags for this node (comma-separated): ").strip()
     tags = tags = [tag.strip() for tag in tags_input.split(",") if tag.strip()]
     config, private_key = generate_node_identity(passphrase, alias, tags)
 
-    # Y guardamos a disco
+    # Guardamos a disco
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
@@ -265,4 +262,29 @@ def update_node(event: dict):
 
     except Exception as e:
         ERR(f"Failed to update node from status event: {e}")
+
+
+def get_node_public_key(node_id: str) -> str:
+    """
+    Retrieves the base64-encoded public key of a node from the database by node_id.
+
+    Args:
+        node_id: The unique ID of the node.
+
+    Returns:
+        The public key as a base64 string.
+    """
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT public_key FROM nodes WHERE node_id = ?", (node_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return row[0]
+
+    except Exception as e:
+        ERR(f"Failed to retrieve public key for node {node_id}: {e}")
 

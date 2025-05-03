@@ -1,18 +1,18 @@
 {
   "hostname": "vps.zimbre.net",
   "alias": "mi-nodo",
-  "creation_date": "2025-05-02T08:42:11.195574+00:00",
+  "creation_date": "2025-05-02T13:18:51.343918+00:00",
   "version": "dfs3-node/0.1.0",
-  "node_id": "96651715e75474bc3106a62cdae9ca6dc9ac7e18dd23912ca3ae0bd2253f8526",
-  "port": "1234",
+  "node_id": "cd8a492910eb959a8f258921fd334c2505b1099484ee98c138f4989c161e40cf",
+  "port": 1234,
   "tags": [
     "test",
     "dfs3"
   ],
   "keys": {
-    "salt_private_key": "7kU/yM7hnfLE73Xt48dyog==",
-    "salt_encryption": "oTcEJvq3tkPg+O4zqjFa7w==",
-    "public_key": "xC79FVrjJ2J+mxHnmTrvVIywWXgYNaVa6glwst3FIbU=",
-    "private_key_encrypted": "2nYR9UtsYyZSzOrPlwkBHgDk6tsG9ZR52lTKU+Fz4nVfGJ/Mg78j8O+gLRdvzqtw9ahSsB31gv7ifhSjF0obUNC0XlAPqvCt"
+    "salt_private_key": "u0431FNULOrWjoxVxrXMAQ==",
+    "salt_encryption": "BoAMGPhxoawKDh91BNgW8Q==",
+    "public_key": "jtgQFVkqRkPli7l4ewaAjnaZP2ssHdf5+qyLa0ZDe2k=",
+    "private_key_encrypted": "eQeawtLa5jMwDPvs4LWEAEcdVcjcaYpxlsx18z5jJrxIqGgoEIAP6mAWP9igfwt0gcIHnlBXBMhuVfAz+UmioqjULQGyLWPl"
   }
 }

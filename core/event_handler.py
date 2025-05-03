@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-05-01
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,18 +29,17 @@ Created: 2025-05-01
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
-import base64
 import json
 
+from base64 import b64decode
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from nacl.encoding import RawEncoder
 
 from utils.logger import LOG, WRN, ERR, DBG
 from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN
-from core.nodes import save_node, update_node
+from core.nodes import save_node, update_node, get_node_public_key
 from core import context
 
 
@@ -56,12 +54,15 @@ def verify_signature(event: dict) -> bool:
         True if the signature is valid, False otherwise.
     """
 
-    # TODO: temporal, la public_key no deberia salir del evento
-    #public_key_bytes = base64.b64decode(event["payload"]["public_key"])
-    public_key_bytes = base64.b64decode(context.config["keys"]["public_key"])
+    # Solo en el caso de alta de nodo, se saca la clave publica del evento
+    if event['event_type'] == 'node_registered':
+        public_key_bytes = b64decode(event["payload"]["public_key"])
+    else:
+        # Deberiamos tener el node_id en db
+        public_key_bytes = b64decode(get_node_public_key(event['node_id']))
 
     # Primero nos quedamos con la firma
-    signature = base64.b64decode(event["signature"])
+    signature = b64decode(event["signature"])
 
     # Eliminamos para reconstruir el contenido firmado
     event_copy = event.copy()
