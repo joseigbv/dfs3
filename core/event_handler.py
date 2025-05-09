@@ -40,6 +40,7 @@ from nacl.encoding import RawEncoder
 from utils.logger import LOG, WRN, ERR, DBG
 from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN
 from core.nodes import save_node, update_node, get_node_public_key
+from core.users import register as register_user
 from core import context
 
 
@@ -138,6 +139,12 @@ def handle_node_status(event: dict, block_id: str):
     LOG(f"Node updated from {block_id}")
 
 
+def handle_user_registered(event: dict, block_id: str):
+    # TODO: Validar 
+    register_user(event)
+    LOG(f"User registered from {block_id}")
+
+
 def handle_generic(event: dict, block_id: str):
     LOG(f"[HANDLER] generic event: {event}")
 
@@ -146,6 +153,7 @@ def handle_generic(event: dict, block_id: str):
 EVENT_HANDLERS = {
     "node_registered": handle_node_registered,
     "node_status": handle_node_status,
+    "user_registered": handle_user_registered,
     # "file_created": handle_file_created,
     # "user_updated": handle_user_updated,
     # ...

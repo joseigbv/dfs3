@@ -32,14 +32,14 @@ Created: 2025-04-30
 #   2025-04-30 - José Ignacio Bravo - Initial creation
 # =============================================================
 
-import base64
 import json
 
+from base64 import b64encode, b64decode
 from nacl.secret import SecretBox
 from nacl.pwhash import argon2id
 from nacl.encoding import RawEncoder
-from nacl.exceptions import CryptoError
-from nacl.signing import SigningKey
+from nacl.exceptions import CryptoError, BadSignatureError
+from nacl.signing import SigningKey, VerifyKey
 
 
 def decrypt_private_key(config: dict, passphrase: str) -> bytes:
@@ -60,8 +60,8 @@ def decrypt_private_key(config: dict, passphrase: str) -> bytes:
     salt_b64 = config["keys"]["salt_encryption"]
     encrypted_b64 = config["keys"]["private_key_encrypted"]
 
-    salt = base64.b64decode(salt_b64)
-    encrypted = base64.b64decode(encrypted_b64)
+    salt = b64decode(salt_b64)
+    encrypted = b64decode(encrypted_b64)
 
     key = argon2id.kdf(
         SecretBox.KEY_SIZE,
@@ -96,5 +96,16 @@ def sign_event(event: dict, private_key: bytes) -> str:
     event_bytes = json.dumps(event, separators=(",", ":"), sort_keys=True).encode("utf-8")
     signature = signing_key.sign(event_bytes, encoder=RawEncoder).signature
 
-    return base64.b64encode(signature).decode()
+    return b64encode(signature).decode()
+
+
+def verify_signature(public_key: str, text: str, signature: str) -> bool:
+    try:
+        verify_key = VerifyKey(b64decode(public_key))
+        verify_key.verify(text.encode(), b64decode(signature))
+
+    except (BadSignatureError, Exception):
+        return False
+
+    return True
 

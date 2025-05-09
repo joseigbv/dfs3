@@ -35,6 +35,8 @@ Created: 2025-04-30
 
 import time
 import getpass
+import threading
+import asyncio
 
 from utils.logger import LOG, WRN, ERR, DBG
 from config.settings import UPDATE_STATUS_INTERVAL
@@ -44,6 +46,7 @@ from core.nodes import init_or_load_node
 from core import context
 from mqtt.listener import start_listener
 from mqtt.client import register_client
+from api.server import start_api_server
 
 
 def show_banner():
@@ -69,7 +72,7 @@ def show_banner():
 """)
 
 
-def main():
+async def main():
     """
     Main entry point for the dfs3 system.
 
@@ -96,21 +99,26 @@ def main():
 
         LOG("Node created successfully. Publishing registration event...")
         event = build_node_registered_event()
-        publish_event(event)
+        block_id = publish_event(event)
 
     LOG(f"Node ID: {config['node_id']} loaded and ready")
 
     # Levantamos el listener mqtt para responder a los eventos
     start_listener()
 
+    # Lanzar API REST en hilo separado
+    api_thread = threading.Thread(target=start_api_server, daemon=True)
+    api_thread.start()
+
     # Aquí dejamos corriendo procesos o servicios adicionales
     try:
         while True:
-            time.sleep(UPDATE_STATUS_INTERVAL)  
+            await asyncio.sleep(UPDATE_STATUS_INTERVAL)
 
             LOG("Update node status...")
             event = build_node_status_event()
-            publish_event(event)
+            # TODO: Meter en un hilo diferente ???
+            block_id = publish_event(event)
 
     except KeyboardInterrupt:
         LOG("Shutting down MQTT listener...")
@@ -120,5 +128,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
 

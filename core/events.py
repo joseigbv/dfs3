@@ -39,7 +39,7 @@ import platform
 
 from config.settings import DATA_DIR, PORT
 from core import context
-from core.constants import SW_VERSION, PROTOCOL
+from core.constants import SW_VERSION, PROTOCOL, EV_NODE_REGISTERED, EV_NODE_STATUS, EV_USER_REGISTERED
 from utils.logger import LOG, WRN, ERR, DBG
 from utils.system import get_uptime_seconds, get_total_disk_space, get_local_ip
 from utils.time import iso_now
@@ -48,7 +48,7 @@ from iota.client import publish_event as publish_event_to_iota
 from mqtt.client import publish_event as publish_event_to_mqtt
 
 
-def publish_event(event: dict):
+def publish_event(event: dict) -> str:
     """
     Publishes an event to IOTA and notifies other nodes via MQTT with the resulting block_id.
 
@@ -70,7 +70,25 @@ def publish_event(event: dict):
     except Exception as e:
         ERR(f"Failed to publish event: {e}")
 
-    
+    return block_id;
+
+ 
+def build_event(event_type: str, payload: dict) -> dict:
+    event = {
+        "event_type": event_type,
+        "timestamp": iso_now(),
+        "node_id": context.config["node_id"],
+        "protocol": PROTOCOL,
+        "payload": payload
+    }
+
+    # Firma solo los datos, no el contenedor
+    event["signature"] = sign_event(event, context.private_key)  
+    DBG(f"Event: {event}")
+
+    return event
+
+
 def build_node_registered_event() -> dict:
     """
     Constructs a node_registered event from the given node config and signs it.
@@ -93,19 +111,9 @@ def build_node_registered_event() -> dict:
         "tags": context.config.get("tags", []),
     }
 
-    event = {
-        "event_type": "node_registered",
-        "timestamp": iso_now(),
-        "node_id": context.config["node_id"],
-        "protocol": PROTOCOL,
-        "payload": payload
-    }
 
-    # Firmamos
-    event["signature"] = sign_event(event, context.private_key)
-    DBG(f"Event: {event}")
-
-    return event
+    # Devolvemos evento completo firmado
+    return build_event(EV_NODE_REGISTERED, payload)
 
 
 def build_node_status_event() -> dict:
@@ -123,17 +131,14 @@ def build_node_status_event() -> dict:
         "total_space": get_total_disk_space()
     }
 
-    event = {
-        "event_type": "node_status",
-        "timestamp": iso_now(),
-        "node_id": context.config["node_id"],
-        "protocol": PROTOCOL,
-        "payload": payload,
-    }
+    # Devolvemos evento completo firmado
+    return build_event(EV_NODE_STATUS, payload)
 
-    # Firmamos
-    event["signature"] = sign_event(event, context.private_key)
-    DBG(f"Event: {event}")
 
-    return event
+def build_user_registered_event(payload: dict) -> dict:
+    # TODO: Revisar tratamiento de payload
+    # payload = ...
+
+    # Devolvemos evento completo firmado
+    return build_event(EV_USER_REGISTERED, payload)
 

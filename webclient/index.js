@@ -9,11 +9,12 @@ etc.sha512Sync = sha512;
 // ---
 // mock api para pruebas
 // ---
+/*
 const originalFetch = window.fetch;
 
 window.fetch = async (url, options) => {
   if (url.endsWith('/auth/challenge')) {
-    console.log('[MOCK] POST /auth/challenge', options.body);
+    console.log('[MOCK] POST /api/v1/auth/challenge', options.body);
     return new Response(JSON.stringify({ challenge: 'challenge' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -21,7 +22,7 @@ window.fetch = async (url, options) => {
   }
 
   if (url.endsWith('/auth/verify')) {
-    console.log('[MOCK] POST /auth/verify', options.body);
+    console.log('[MOCK] POST /api/v1/auth/verify', options.body);
     return new Response(JSON.stringify({ access_token: "access_token" }), { 
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -32,7 +33,7 @@ window.fetch = async (url, options) => {
   // Resto de fetchs sin cambios
   return originalFetch(url, options);
 };
-
+*/
 
 
 // ---
@@ -52,8 +53,14 @@ $(function () {
 
   // Llenar el selector de usuarios (alias + user_id)
   for (const [userId, user] of Object.entries(users)) {
-    $select.append($('<option>').val(userId).text(`${user.alias} (${userId})`));
+    $select.append($('<option>').val(userId).text(`${user.alias} (${userId.slice(0, 18)}...)`));
   }
+
+  // Activación de btn si introducida password
+  $('#login-btn').prop('disabled', true);
+  $('#password').on('input', function () {
+    $('#login-btn').prop('disabled', $(this).val().trim().length == 0);
+  });
 
 
   // ---
@@ -76,16 +83,19 @@ $(function () {
       sessionStorage.setItem('dfs3_private_key', bufferToBase64(privateKey));
 
       // Iniciamos el desafio / respuesta enviando nuestro user_id 
-      const challengeRes = await fetch('/auth/challenge', {
+      const challengeRes = await fetch('/api/v1/auth/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId })
       });
 
+      // TODO: Control de error ???
+      // ...
+
       // Capturamos la respuesta y la firmamos con nuestra clave privada
       const { challenge } = await challengeRes.json();
       const signature = await sign(toBytes(challenge), privateKey);
-      const verifyRes = await fetch('/auth/verify', {
+      const verifyRes = await fetch('/api/v1/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, signature: bufferToBase64(signature) })
@@ -95,6 +105,7 @@ $(function () {
         // Nos quedamos con el token devuelto 
         const { access_token } = await verifyRes.json();
         sessionStorage.setItem('access_token', access_token);
+        console.log('Access token:', access_token);
 
         // Vamos a la siguiente pagina
         window.location.href = 'upload.html'; 

@@ -1,6 +1,7 @@
 # Mios 
 data/
 logs/
+_OLD/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

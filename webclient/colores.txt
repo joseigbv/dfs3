@@ -1,0 +1,2 @@
+Azul claro (texto "dfs") y partes internas del icono: #4DA8DA
+Azul oscuro (texto "3" y contorno del icono): #003A75

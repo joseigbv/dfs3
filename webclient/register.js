@@ -9,10 +9,11 @@ etc.sha512Sync = sha512;
 // ---
 // mock api para pruebas
 // ---
+/*
 const originalFetch = window.fetch;
 
 window.fetch = async (url, options) => {
-  if (url.endsWith('/auth/register')) {
+  if (url.endsWith('/api/v1/auth/register')) {
     console.log('[MOCK] POST /auth/register', options.body);
     return new Response(JSON.stringify({ user_id: '01234abcd...' }), {
       status: 200,
@@ -23,6 +24,7 @@ window.fetch = async (url, options) => {
   // Resto de fetchs sin cambios
   return originalFetch(url, options);
 };
+*/
 
 
 // ---
@@ -65,6 +67,13 @@ $(function () {
   const $error = $('#error-msg');
   const $output = $('#output');
 
+  // Activación de btn si introducida password
+  $('#register-btn').prop('disabled', true);
+  $('#alias').on('input', function () {
+    $('#register-btn').prop('disabled', $(this).val().trim().length == 0);
+  });
+
+
   // ---
   // Click register-btn
   // ---
@@ -84,7 +93,7 @@ $(function () {
     }
 
     if (!alias || !pass1) {
-      $error.text('Todos los campos son obligatorios.');
+      $error.text('Completar los campos obligatorios.');
       return;
     }
 
@@ -106,7 +115,7 @@ $(function () {
 
       console.log(JSON.stringify(user, null, 2));
 
-      const response = await fetch('/auth/register', {
+      const response = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user)

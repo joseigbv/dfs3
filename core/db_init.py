@@ -64,9 +64,11 @@ def create_db():
         CREATE TABLE users (
             user_id TEXT PRIMARY KEY,
             alias TEXT NOT NULL,
+            name TEXT,
+            email TEXT,
             public_key TEXT NOT NULL,
             tags TEXT DEFAULT '[]',
-            version INTEGER DEFAULT 1
+            version INTEGER DEFAULT 1 
         )
         ''')
 

@@ -1,21 +1,59 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Condensed" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no" />
+
   <title>DFS3 - Subir archivo</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script type="module" src="upload.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 1em; }
-    input, button { display: block; margin: 1em 0; }
-    .error { color: red; }
+
+body { font-family: sans-serif; padding: 1em; }
+input, button { display: block; margin: 1em 0; }
+.error { color: red; }
+
   </style>
 </head>
+<!--
 <body>
   <h1>Subir archivo</h1>
   <input type="file" id="file-input" />
   <button id="upload-btn">Cifrar y mostrar</button>
   <p class="error" id="error-msg"></p>
   <pre id="output"></pre>
+</body>
+-->
+<body class="bg-light">
+  <div class="container mt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <img src="logo.png" alt="Logo DFS3" class="mb-3" style="max-width: 100px;" />
+            <h3 class="card-title text-center mb-4">Subir archivo</h3>
+
+            <div id="upload-form">
+              <div class="mb-3">
+                <label for="file-input" class="form-label">Selecciona un archivo:</label>
+                <input type="file" class="form-control" id="file-input" />
+              </div>
+
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary" id="upload-btn">Cifrar y mostrar</button>
+              </div>
+
+              <p class="text-danger mt-3" id="error-msg"></p>
+              <pre id="output" class="small text-muted mt-2"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

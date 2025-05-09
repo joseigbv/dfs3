@@ -1,6 +1,6 @@
 """
 Module: constants.py
-Description: Central definitions for constants and global patterns used throughout dfs3, including valid event types and SHA-256 format validation.
+Description: Central definitions for constants and global patterns used throughout dfs3
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
@@ -44,23 +44,39 @@ class Verbosity(IntEnum):
     DEBUG = 4
 
 
+EV_USER_REGISTERED = "user_registered"
+#EV_UPDATED = "user_updated"
+#EV_USER_DELETED = "user_deleted"
+EV_USER_JOINED_NODE = "user_joined_node"
+EV_NODE_REGISTERED = "node_registered"
+#EV_NODE_UNREGISTERED = "node_unregistered"
+#EV_NODE_UPDATED = "node_updated"
+EV_NODE_STATUS = "node_status"
+EV_FILE_CREATED = "file_created"
+EV_FILE_DELETED = "file_deleted"
+EV_FILE_SHARED = "file_shared"
+EV_FILE_COPIED = "file_copied"
+EV_FILE_REPLICATED = "file_replicated"
+EV_FILE_RENAMED = "file_renamed"
+EV_FILE_ACCESSED = "file_accessed"
+
 # Lista global de tipos de eventos válidos en dfs3
 VALID_EVENT_TYPES = {
-    "user_created",
-    "user_updated",
-    "user_deleted",
-    "user_joined_node",
-    "node_registered",
-    "node_unregistered",
-    "node_updated",
-    "node_status",
-    "file_created",
-    "file_deleted",
-    "file_shared",
-    "file_copied",
-    "file_replicated",
-    "file_renamed",
-    "file_accessed"
+    EV_USER_REGISTERED,
+#    EV_UPDATED, 
+#    EV_USER_DELETED,
+    EV_USER_JOINED_NODE,
+    EV_NODE_REGISTERED, 
+#    EV_NODE_UNREGISTERED,
+#    EV_NODE_UPDATED,
+    EV_NODE_STATUS,
+    EV_FILE_CREATED,
+    EV_FILE_DELETED,
+    EV_FILE_SHARED,
+    EV_FILE_COPIED,
+    EV_FILE_REPLICATED,
+    EV_FILE_RENAMED,
+    EV_FILE_ACCESSED
 }
 
 # Version de software y de protocolo
@@ -69,4 +85,8 @@ PROTOCOL = "dfs3/1.0"
 
 # Expresión regular para validar un SHA-256 en formato hexadecimal con prefijo 0x
 SHA256_HEX_PATTERN = re.compile(r"^0x[a-fA-F0-9]{64}$")
+
+# Otras expresiones regulares para validacion
+RE_USER_ID = r"^[a-f0-9]{64}$"
+RE_ALIAS = r"^[a-z0-9_-]{3,20}$"
 

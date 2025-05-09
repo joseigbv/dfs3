@@ -268,6 +268,11 @@ $(function () {
     return;
   }
 
+  $('#upload-btn').prop('disabled', true);
+  $('#file-input').on('change', function () {
+    $('#upload-btn').prop('disabled', this.files.length === 0);
+  });
+
   // Nuestra clave privada, necesaria para derivacion de claves
   const privateKey = base64ToBuffer(privateKeyB64);
 
