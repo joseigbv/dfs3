@@ -2,13 +2,11 @@
 Module: time.py
 Description: Utility functions for handling date and time conversions in the dfs3 system.
 Includes helpers for converting between ISO 8601 and Unix epoch formats.
-
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -32,24 +30,28 @@ Created: 2025-05-01
 #
 # Change history:
 #   2025-05-02 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 from datetime import datetime, timezone
+from time import time
+
+
+def epoch_now() -> int:
+    """
+    Returns the current UTC time as a Unix epoch timestamp in seconds.
+    """   
+    return int(time())
 
 
 def iso_now() -> str:
+    """
+    Returns the current UTC timestamp as an ISO 8601 string (with Z suffix).
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
 def iso_to_epoch(iso_str: str) -> int:
     """
     Converts an ISO 8601 datetime string to a Unix epoch timestamp in seconds.
-
-    Args:
-        iso_str: The datetime string (e.g. '2025-05-01T12:34:56Z').
-
-    Returns:
-        Epoch time as integer (seconds since 1970-01-01).
     """
     try:
         if iso_str.endswith("Z"):

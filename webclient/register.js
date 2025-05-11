@@ -7,27 +7,6 @@ etc.sha512Sync = sha512;
 
 
 // ---
-// mock api para pruebas
-// ---
-/*
-const originalFetch = window.fetch;
-
-window.fetch = async (url, options) => {
-  if (url.endsWith('/api/v1/auth/register')) {
-    console.log('[MOCK] POST /auth/register', options.body);
-    return new Response(JSON.stringify({ user_id: '01234abcd...' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  // Resto de fetchs sin cambios
-  return originalFetch(url, options);
-};
-*/
-
-
-// ---
 // Genera claves y devuelve ambas
 // ---
 async function generateKeys(password) {
@@ -65,7 +44,7 @@ async function saveUserKeysToStorage(userId, alias, publicKey, privateKey, passw
 
 $(function () {
   const $error = $('#error-msg');
-  const $output = $('#output');
+  const $status = $('#upload-status');
 
   // Activación de btn si introducida password
   $('#register-btn').prop('disabled', true);
@@ -78,9 +57,6 @@ $(function () {
   // Click register-btn
   // ---
   $('#register-btn').on('click', async () => {
-    $error.text('');
-    $output.text('');
-
     const alias = $('#alias').val()?.trim();
     const fullname = $('#fullname').val()?.trim();
     const email = $('#email').val()?.trim();
@@ -97,12 +73,14 @@ $(function () {
       return;
     }
 
+    // Para evitar reintentos, reset status
+    $('#register-form :input').prop('disabled', true);
+    $error.text('');
+    $status.show(); // muestra el spinner
+
     try {
       const { publicKey, privateKey } = await generateKeys(pass1);
       const userId = await sha256Hex(publicKey);
-
-      // Guarda la clave privada cifrada en localStorage
-      await saveUserKeysToStorage(userId, alias, publicKey, privateKey, pass1);
 
       // Muestra lo que se enviaría al servidor
       const user = {
@@ -113,17 +91,22 @@ $(function () {
         public_key: bufferToBase64(publicKey)
       };
 
-      console.log(JSON.stringify(user, null, 2));
-
       const response = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user)
       });
 
+      // Todo ok, guarda la clave privada cifrada en localStorage
+      await saveUserKeysToStorage(userId, alias, publicKey, privateKey, pass1);
+
       if (response.ok) {
-        $('output').text('Usuario registrado con exito, redirigiendo...');
-        window.location.href = 'index.html';
+        // Redirigimos a pagina principal
+        $status.text("Usuario registrado. Redirigiendo...");
+        setTimeout(() => window.location.href = 'login.html', 2000);
+
+        // Solo para debug
+        console.log(userId);
 
       } else {
         const e = await response.text();
@@ -131,9 +114,12 @@ $(function () {
       }
 
     } catch (e) {
+      $status.hide();
       $error.text('Error durante el registro.');
+      $('#register-form :input').prop('disabled', false);
       console.log(e);
     }
 
   });
+
 });

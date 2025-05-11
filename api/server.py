@@ -1,12 +1,11 @@
 """
-Module: server.py
+Module: api/server.py
 Description: FastAPI-based REST server for the dfs3 distributed file system node.
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,13 +29,14 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
+
+import uvicorn
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from api.routes import router
+from config.settings import API_PORT
 
-import uvicorn
 
 # Creamos una instancia de la aplicación
 app = FastAPI()
@@ -44,6 +44,9 @@ app.include_router(router, prefix="/api/v1")
 app.mount("/", StaticFiles(directory="webclient", html=True), name="static")
 
 
-def start_api_server():
-    uvicorn.run("api.server:app", host="0.0.0.0", port=8008, log_level="info")
+def start_api():
+    """
+    Starts the dfs3 HTTP API server.
+    """
+    uvicorn.run("api.server:app", host="0.0.0.0", port=API_PORT, log_level="info")
 

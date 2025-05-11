@@ -48,14 +48,13 @@ from core.constants import SW_VERSION
 from utils.crypto import decrypt_private_key
 from utils.logger import LOG, WRN, ERR, DBG
 from utils.time import iso_to_epoch
-from config.settings import CONFIG_PATH, DATA_DIR, DB_FILE, PORT
+from config.settings import CONFIG_PATH, DATA_DIR, DB_FILE, API_PORT
 
 
 def derive_key_from_passphrase(passphrase: str) -> bytes:
     """
     Derives a 32-byte seed from the user's passphrase and salt using Argon2id.
     """
-    
     salt = nacl_random(16)
     key = argon2id.kdf(
         SecretBox.KEY_SIZE,
@@ -72,7 +71,6 @@ def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tupl
     """
     Generates a new Ed25519 keypair and returns all data needed for config.json.
     """
-
     # seed used to derive private key deterministically
     seed, salt_private_key = derive_key_from_passphrase(passphrase)
     signing_key = SigningKey(seed)
@@ -90,7 +88,7 @@ def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tupl
         "creation_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "version": SW_VERSION,
         "node_id": node_id,
-        "port": PORT,
+        "port": API_PORT,
         "tags": tags,
         "keys": {
             "salt_private_key": b64encode(salt_private_key).decode(),
@@ -106,12 +104,7 @@ def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tupl
 def init_or_load_node(config_path: str = CONFIG_PATH) -> tuple[dict, bytes, bool]:
     """
     Loads existing node configuration or creates one if it doesn't exist.
-
-    Returns:
-        The configuration dictionary with node_id and keys, private key and whether it's new or not.
     """
-
-    # Si ya existe el fichero, lo cargamos
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -155,11 +148,7 @@ def init_or_load_node(config_path: str = CONFIG_PATH) -> tuple[dict, bytes, bool
 def save_node(event: dict):
     """
     Saves or updates a node in the local database based on a node_registered event.
-
-    Args:
-        event: The full event dictionary validated from IOTA.
     """
-
     node_id = event["node_id"]
     payload = event["payload"]
 
@@ -220,11 +209,7 @@ def save_node(event: dict):
 def update_node(event: dict):
     """
     Updates dynamic fields of an existing node in the database based on a node_status event.
-
-    Args:
-        event: The full event dictionary validated from IOTA.
     """
-
     node_id = event["node_id"]
     payload = event["payload"]
 
@@ -264,21 +249,13 @@ def update_node(event: dict):
         ERR(f"Failed to update node from status event: {e}")
 
 
-def get_node_public_key(node_id: str) -> str:
+def get_node_public_key(node_id: str) -> str | None:
     """
     Retrieves the base64-encoded public key of a node from the database by node_id.
-
-    Args:
-        node_id: The unique ID of the node.
-
-    Returns:
-        The public key as a base64 string.
     """
-
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-
         cursor.execute("SELECT public_key FROM nodes WHERE node_id = ?", (node_id,))
         row = cursor.fetchone()
         conn.close()
@@ -287,4 +264,5 @@ def get_node_public_key(node_id: str) -> str:
 
     except Exception as e:
         ERR(f"Failed to retrieve public key for node {node_id}: {e}")
+        return None
 

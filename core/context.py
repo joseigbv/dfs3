@@ -2,13 +2,11 @@
 Module: context.py
 Description: Global shared context for in-memory runtime data such as node config and private key.
 Used to provide access to the current node identity across modules without passing parameters explicitly.
-
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -32,7 +30,6 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 config = None
 private_key = None

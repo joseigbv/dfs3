@@ -7,31 +7,36 @@
   <link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Condensed" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script type="module" src="upload.js"></script>
-  <title>dfs3 - Subir archivo</title>
+  <script type="module" src="login.js"></script>
+  <title>dfs3 - Login</title>
 </head>
 <body class="bg-light">
   <div class="container mt-5">
     <div class="row justify-content-center">
-      <div class="col-md-6 col-lg-5">
+      <div class="col-md-6 col-lg-4">
         <div class="card shadow-sm">
           <div class="card-body">
             <img src="img/logo.png" alt="Logo DFS3" class="mb-3" style="max-width: 100px;" />
-            <h3 class="card-title text-center mb-4">Subir archivo</h3>
-            <div id="upload-form">
+            <h3 class="card-title text-center mb-4">Iniciar sesión</h3>
+            <div id="login-form">
               <div class="mb-3">
-                <label for="file-input" class="form-label">Selecciona un archivo:</label>
-                <input type="file" class="form-control" id="file-input" />
+                <label for="user-select" class="form-label">Selecciona usuario:</label>
+                <select id="user-select" class="form-select"></select>
+              </div>
+              <div class="mb-3">
+                <label for="password" class="form-label">Contraseña:</label>
+                <input type="password" class="form-control" id="password" />
               </div>
               <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary" id="upload-btn">Cifrar y mostrar</button>
+                <button id="login-btn" class="btn btn-primary">Iniciar sesión</button>
+                <button id="go-register" class="btn btn-outline-secondary">Registrar nuevo usuario</button>
               </div>
 
 <div id="upload-status" class="mt-3" style="display: none;">
   <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
     <span class="visually-hidden">Cargando...</span>
   </div>
-  <span>Subiendo archivo...</span>
+  <span>Comprobando...</span>
 </div>
 
               <p class="text-danger mt-3" id="error-msg"></p>

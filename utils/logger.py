@@ -1,9 +1,10 @@
-# =============================================================
-# File: logger.py
-# Description: Simple logging utility with verbosity levels
-# Author: José Ignacio Bravo Vicente
-# License: MIT
-#
+"""
+Module: utils/logger.py
+Description: Simple logging utility with verbosity levels
+Author: José Ignacio Bravo <nacho.bravo@gmail.com>
+License: MIT
+"""
+
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -27,9 +28,9 @@
 #
 # Change history:
 #   2025-04-30 - José Ignacio - Initial creation
-# =============================================================
 
 import sys
+
 from core.constants import Verbosity
 from config.settings import VERBOSITY_LEVEL
 
@@ -37,12 +38,7 @@ from config.settings import VERBOSITY_LEVEL
 def LOG(msg, level=Verbosity.MEDIUM):
     """
     Logs a general informational message if the given verbosity level is allowed.
-
-    Args:
-        msg: The message to log.
-        level: The verbosity level of the message (default is MEDIUM).
     """
-
     if level <= VERBOSITY_LEVEL:
         print(f"[LOG] {msg}")
 
@@ -50,35 +46,30 @@ def LOG(msg, level=Verbosity.MEDIUM):
 def WRN(msg):
     """
     Logs a warning message, regardless of the global verbosity setting.
-
-    Args:
-        msg: The warning message to log.
     """
-
     print(f"[WRN] {msg}")
 
 
 def ERR(msg):
     """
     Logs an error message, regardless of the global verbosity setting.
-
-    Args:
-        msg: The error message to log.
     """
-
     print(f"[ERR] {msg}")
+    sys.exit(1) # TODO: temporal
+
+
+def ABR(msg):
+    """
+    Logs an error message, and abort !!!
+    """
+    print(f"[ABR] {msg}")
     sys.exit(1)
 
 
 def DBG(msg):
     """
     Logs a debug message if the given verbosity level is high (equivalent to LOG(msg, level=HIGH).
-
-    Args:
-        msg: The debug message to log.
     """
-
     if VERBOSITY_LEVEL == Verbosity.DEBUG:
         print(f"[DBG] {msg}")
-
 

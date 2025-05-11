@@ -1,5 +1,5 @@
 """
-Module: event_handler.py
+Module: core/event_handler.py
 Description: Validates and dispatches dfs3 events to appropriate handlers by type.
 Author: José Ignacio
 License: MIT
@@ -31,30 +31,52 @@ Created: 2025-05-01
 #   2025-04-30 - José Ignacio Bravo - Initial creation
 
 import json
+import sqlite3
 
 from base64 import b64decode
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from nacl.encoding import RawEncoder
-
+from config.settings import DATA_DIR
 from utils.logger import LOG, WRN, ERR, DBG
+from utils.time import iso_to_epoch
 from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN
 from core.nodes import save_node, update_node, get_node_public_key
 from core.users import register as register_user
+from core.files import create as create_file 
 from core import context
+
+
+def save_event_to_db(block_id: str, event: dict):
+    """
+    Saves a minimal reference of an event into the local SQLite database.
+    """
+    try:
+        event_type = event["event_type"]
+        timestamp = iso_to_epoch(event["timestamp"])
+        node_id = event["node_id"]
+
+        conn = sqlite3.connect(f"{DATA_DIR}/dfs3.db")
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO events (block_id, event_type, timestamp, node_id)
+            VALUES (?, ?, ?, ?)
+        """, (block_id, event_type, timestamp, node_id))
+
+        conn.commit()
+        conn.close()
+    
+        LOG(f"Event {event_type} saved in DB with block_id {block_id} from node {node_id}.")
+        
+    except Exception as e:
+        ERR(f"Failed to save event {event_type} in DB: {e}")
 
 
 def verify_signature(event: dict) -> bool:
     """
     Verifies the digital signature of a signed dfs3 event.
-
-    Args:
-        event: The complete event dictionary including 'signature'.
-
-    Returns:
-        True if the signature is valid, False otherwise.
     """
-
     # Solo en el caso de alta de nodo, se saca la clave publica del evento
     if event['event_type'] == 'node_registered':
         public_key_bytes = b64decode(event["payload"]["public_key"])
@@ -80,14 +102,7 @@ def verify_signature(event: dict) -> bool:
 def validate_event(event: dict) -> bool:
     """
     Validates the structure and content of a IOTA event.
-
-    Args:
-        event: Event data as a dictionary (from IOTA). 
-
-    Returns:
-        True if the event is structurally / semantically valid and well signed, False otherwise.
     """
-
     # Estos campos son obligatorios
     required_fields = {"event_type", "timestamp", "node_id", "payload", "signature"}
 
@@ -114,11 +129,7 @@ def validate_event(event: dict) -> bool:
 def handle_node_registered(event: dict, block_id: str):
     """
     Handles a node_status event.
-
-    Args:
-        event: The validated event dictionary.
     """
-
     # Almacenamos en db
     save_node(event)
 
@@ -128,11 +139,7 @@ def handle_node_registered(event: dict, block_id: str):
 def handle_node_status(event: dict, block_id: str):
     """
     Handles a node_status event.
-
-    Args:
-        event: The validated event dictionary.
     """
-
     # Actualizamos en db
     update_node(event)
 
@@ -140,13 +147,38 @@ def handle_node_status(event: dict, block_id: str):
 
 
 def handle_user_registered(event: dict, block_id: str):
+    """
+    Handles a user_created event by registering the user and storing the event reference.
+    """
     # TODO: Validar 
     register_user(event)
+
     LOG(f"User registered from {block_id}")
 
 
+def handle_user_joined_node(event: dict, block_id: str):
+    """
+    Handles a user_joined_node event by recording the event reference for audit purposes.
+    """
+    # De momento no es necesario hacer nada, ya registra evento en DB e IOTA
+    pass
+
+
+def handle_file_created(event: dict, block_id: str):
+    """
+    Handles a file_created event by storing the event reference and preparing for future replication.
+    """
+    # TODO: Validar 
+    create_file(event)
+
+    LOG(f"File created from {block_id}")
+
+
 def handle_generic(event: dict, block_id: str):
-    LOG(f"[HANDLER] generic event: {event}")
+    """
+    Handles generic / not defined events.
+    """
+    WRN(f"Handler for generic event: {event}")
 
 
 # Placeholder: aquí irán más handlers como handle_file_created(), handle_user_updated(), etc.
@@ -154,8 +186,8 @@ EVENT_HANDLERS = {
     "node_registered": handle_node_registered,
     "node_status": handle_node_status,
     "user_registered": handle_user_registered,
-    # "file_created": handle_file_created,
-    # "user_updated": handle_user_updated,
+    "user_joined_node": handle_user_joined_node,
+    "file_created": handle_file_created,
     # ...
 }
 
@@ -163,11 +195,7 @@ EVENT_HANDLERS = {
 def process_event(event: dict, block_id: str):
     """
     Processes a IOTA event by validating and dispatching it to the appropriate handler.
-
-    Args:
-        event: Event dictionary to process.
     """
-
     DBG(f"IOTA event {block_id}: {event}")
 
     # Primero, es correcto el formato del mensaje IOTA?
@@ -178,10 +206,12 @@ def process_event(event: dict, block_id: str):
     # Ahora ya procedemos a ejecutar el manejador para ese tipo 
     event_type = event["event_type"]
     handler = EVENT_HANDLERS.get(event_type)
-
     if handler:
         handler(event, block_id)
 
     else:
         WRN(f"No handler defined for event type: {event_type}")
+
+    LOG(f"Saving event to DB: {block_id}")
+    save_event_to_db(block_id, event)
 

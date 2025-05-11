@@ -1,6 +1,12 @@
-# api/models/auth.py
+"""
+Module: api/models/auth.py
+Description: Defines request and response models for authentication endpoints in the dfs3 API.
+Includes schemas for login, challenge-response, and user verification logic.
+Author: José Ignacio Bravo <nacho.bravo@gmail.com>
+License: MIT
+Created: 2025-05-01
+"""
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -24,22 +30,25 @@
 #
 # Change history:
 #   2025-05-08 - José Ignacio Bravo - Initial creation
-# =============================================================
 
-from core.constants import RE_USER_ID, RE_ALIAS
-from core.validators import validate_base64
 from pydantic import BaseModel, EmailStr, constr, validator
 from typing import Optional
-
-import base64
+from core.constants import RE_USER_ID, RE_ALIAS, RE_BASE64
+from core.validators import validate_base64
 
 
 class RegisterRequest(BaseModel):
-    user_id: constr(regex=RE_USER_ID) = ...
-    alias: constr(regex=RE_ALIAS) = ...
+    """
+    Request model for registering a new user.
+    """
+    user_id: constr(regex=RE_USER_ID)
+    alias: constr(regex=RE_ALIAS)
     name: Optional[str] = None
     email: Optional[EmailStr] = None
-    public_key: constr(min_length=44, max_length=512) = ...
+    public_key: constr(min_length=44, max_length=512, regex=RE_BASE64)
+
+    class Config:
+        extra = "forbid"
 
     @validator("public_key")
     def validate_public_key(cls, v):
@@ -47,20 +56,38 @@ class RegisterRequest(BaseModel):
 
 
 class RegisterResponse(BaseModel):
+    """
+    Response model returned after a successful user registration.
+    """
     user_id: str
 
 
 class ChallengeRequest(BaseModel):
-    user_id: constr(regex=RE_USER_ID) = ...
+    """
+    Request model for initiating a login challenge using a user ID.
+    """
+    user_id: constr(regex=RE_USER_ID)
+
+    class Config:
+        extra = "forbid"
 
 
 class ChallengeResponse(BaseModel):
+    """
+    Response model containing the generated login challenge and timestamp.
+    """
     challenge: str
 
 
 class VerifyRequest(BaseModel):
-    user_id: constr(regex=RE_USER_ID) = ...
-    signature: str  # base64 de firma sobre el challenge
+    """
+    Request model for verifying a signed login challenge.
+    """
+    user_id: constr(regex=RE_USER_ID)
+    signature: constr(regex=RE_BASE64)
+
+    class Config:
+        extra = "forbid"
 
     @validator("signature")
     def validate_public_key(cls, v):
@@ -68,5 +95,8 @@ class VerifyRequest(BaseModel):
 
 
 class VerifyResponse(BaseModel):
+    """
+    Response model returned after successful challenge verification, includes session token.
+    """
     access_token: str
 

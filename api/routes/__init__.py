@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-05-04
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,20 +29,23 @@ Created: 2025-05-04
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from api.routes import auth, files
+from core.constants import SW_VERSION
+
 
 # instancia de enrutador modular
 router = APIRouter()
+router.include_router(auth.router, prefix="/auth")
+router.include_router(files.router)
+
 
 @router.get("/status")
 async def get_status():
-    return JSONResponse(content={"status": "ok", "message": "dfs3 API v1"})
-
-# /auth
-router.include_router(auth.router, prefix="/auth")
-router.include_router(files.router)
+    """
+    Returns the current status of the dfs3 API service (testing).
+    """
+    return JSONResponse(content={ "status": "ok", "message": SW_VERSION })
 

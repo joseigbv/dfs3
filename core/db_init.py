@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,7 +29,6 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import sqlite3
 import os
@@ -42,19 +40,13 @@ from config.settings import DATA_DIR, DB_FILE
 def create_db():
     """
     Creates the SQLite database and all required tables if they do not already exist.
-
-    This includes the 'users', 'nodes', 'files', and 'entries' tables. If the database file
-    already exists, the function will emit a warning and do nothing.
     """
-
-    # Si no existe la db, la creamos
     os.makedirs(DATA_DIR, exist_ok=True)
     if os.path.exists(DB_FILE):
         LOG(f"Database '{DB_FILE}' already exists")
         return
 
     WRN(f"Database '{DB_FILE}' doesn't exist, creating...")
-
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -120,6 +112,33 @@ def create_db():
             FOREIGN KEY (user_id) REFERENCES users(user_id),
             FOREIGN KEY (file_id) REFERENCES files(file_id)
         )
+        ''')
+
+        # Tabla de entradas
+        cursor.execute('''
+        -- Table: events
+        CREATE TABLE events (
+            block_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL CHECK (event_type IN (
+                'user_registered',
+                'user_joined_node',
+                'node_registered',
+                'node_status',
+                'file_created',
+                'file_deleted',
+                'file_shared',
+                'file_copied',
+                'file_replicated',
+                'file_renamed',
+                'file_accessed'
+            )),
+            timestamp TIMESTAMP NOT NULL,
+            node_id TEXT NOT NULL,
+            FOREIGN KEY (node_id) REFERENCES nodes(node_id)
+        );
+
+        -- CREATE INDEX idx_events_event_type ON events(event_type);
+        -- CREATE INDEX idx_events_node_id ON events(node_id);
         ''')
 
         conn.commit()

@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-05-01
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,7 +29,6 @@ Created: 2025-05-01
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import shutil
 import socket

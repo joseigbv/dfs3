@@ -1,12 +1,11 @@
 """
-Module: crypto.py
+Module: utils/crypto.py
 Description: Provides cryptographic utilities for key decryption and verification.
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,7 +29,6 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import json
 
@@ -45,18 +43,7 @@ from nacl.signing import SigningKey, VerifyKey
 def decrypt_private_key(config: dict, passphrase: str) -> bytes:
     """
     Decrypts the encrypted private key using the passphrase and salt_encryption.
-
-    Args:
-        config: The loaded config.json dictionary containing encryption metadata.
-        passphrase: The passphrase provided by the user.
-
-    Returns:
-        The decrypted private key bytes.
-
-    Raises:
-        CryptoError: If decryption fails (e.g. wrong passphrase).
     """
-
     salt_b64 = config["keys"]["salt_encryption"]
     encrypted_b64 = config["keys"]["private_key_encrypted"]
 
@@ -79,18 +66,7 @@ def decrypt_private_key(config: dict, passphrase: str) -> bytes:
 def sign_event(event: dict, private_key: bytes) -> str:
     """
     Signs the entire event dictionary (excluding the signature field) using the Ed25519 private key.
-
-    Args:
-        event: The event dictionary to sign. Must not yet include the "signature" field.
-        private_key: The raw private key in bytes used to sign the event.
-
-    Returns:
-        The signature as a base64-encoded string.
-
-    Raises:
-        Exception if the signing process fails.
     """
-
     # Firmar todo el evento (sin signature)
     signing_key = SigningKey(private_key)
     event_bytes = json.dumps(event, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -100,6 +76,9 @@ def sign_event(event: dict, private_key: bytes) -> str:
 
 
 def verify_signature(public_key: str, text: str, signature: str) -> bool:
+    """
+    Verifies the Ed25519 signature of the given text using the provided base64-encoded public key.
+    """
     try:
         verify_key = VerifyKey(b64decode(public_key))
         verify_key.verify(text.encode(), b64decode(signature))

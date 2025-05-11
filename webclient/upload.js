@@ -5,7 +5,7 @@ import { bufferToBase64, base64ToBuffer, sha256Hex } from './common.js';
 // Asegura que sodium está cargado antes de usarlo
 await sodium.ready;
 
-
+/*
 // ---
 // mock api para pruebas
 // ---
@@ -23,6 +23,7 @@ window.fetch = async (url, options) => {
   // Resto de fetchs sin cambios
   return originalFetch(url, options);
 };
+*/
 
 
 // ---
@@ -234,14 +235,22 @@ async function decryptFile(metadata, fileDataEncrypted, userId, privateKey, publ
 async function uploadFile(metadata, fileDataEncrypted) {
   const formData = new FormData();
   const fileBlob = new Blob([fileDataEncrypted], { type: metadata.mimetype || "application/octet-stream" });
-  formData.append('file', fileBlob, metadata.filename);
+  formData.append('data', fileBlob, metadata.filename);
   formData.append('metadata', JSON.stringify(metadata));
 
   // Enviamos a la api
-  const response = await fetch('/files', {
+  const accessToken = sessionStorage.getItem('access_token');
+  const response = await fetch('/api/v1/files', {
+    headers: { 'Authorization': 'Bearer ' + accessToken },
     method: 'POST',
     body: formData
   });
+
+  // Redirigir a login si no autorizado
+  if (response.status === 401) {
+    window.location.href = 'login.html';
+    return;
+  }
 
   // Si ha habido problemas, generamos una excepcion
   if (!response.ok) {
@@ -256,10 +265,10 @@ async function uploadFile(metadata, fileDataEncrypted) {
 // --
 $(function () {
   const $error = $('#error-msg');
-  const $output = $('#output');
+  const $status = $('#upload-status');
 
   // Comenzamos recuperando la clave privada sin cifrar y el user_id
-  const privateKeyB64 = sessionStorage.getItem('dfs3_private_key');
+  const privateKeyB64 = sessionStorage.getItem('private_key');
   const userId = sessionStorage.getItem('active_user_id');
 
   if (!privateKeyB64 || !userId) {
@@ -285,14 +294,17 @@ $(function () {
   // Click upload-btn
   // ---
   $('#upload-btn').on('click', async () => {
-    $output.text('');
-    $error.text('');
 
     const file = $('#file-input')[0].files[0];
     if (!file) {
       $error.text('Selecciona un archivo primero.');
       return;
     }
+
+    // Para evitar reintentos, reset status
+    $('#upload-form :input').prop('disabled', true);
+    $error.text('');
+    $status.show(); // muestra el spinner
 
     // Ojo con el scope de una variable
     let metadata, fileDataEncrypted;
@@ -308,7 +320,6 @@ $(function () {
 
       // TODO: Pendiente integrar con API REST
       await uploadFile(metadata, fileDataEncrypted);
-      $output.text('Archivo cifrado y enviado.');
 
       // ---
       // Prueba de aniadir un nuevo usuario, (de momento nosotros mismos)
@@ -321,18 +332,24 @@ $(function () {
         publicKey	// Clave publica del destinatario
       );
 
+      // Redirigimos a pagina principal
+      $status.text("Subida completada. Redirigiendo...");
+      setTimeout(() => window.location.href = 'index.html', 2000);
+
       // Solo para debug
       console.log(metadata);
 
     } catch(e) {
+      $status.hide();
       $error.text("Error al cifrar o enviar.");
+      $('#upload-form :input').prop('disabled', false);
       console.log(e);
     }
 
     // ---
     // Temporal, para verificar que todo se descifra correctamente
     // ---
-
+    /*
     try {   
       // Comprobamos que funciona el descifrado para el propietario
       const fileData = await decryptFile(
@@ -350,7 +367,8 @@ $(function () {
       $error.text("Error al descifrar");
       console.log(e);
     }
-
+    */
   });
+
 });
 

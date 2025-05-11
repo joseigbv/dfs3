@@ -7,122 +7,98 @@ etc.sha512Sync = sha512;
 
 
 // ---
-// mock api para pruebas
+// Utilidades: format size
 // ---
-/*
-const originalFetch = window.fetch;
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
-window.fetch = async (url, options) => {
-  if (url.endsWith('/auth/challenge')) {
-    console.log('[MOCK] POST /api/v1/auth/challenge', options.body);
-    return new Response(JSON.stringify({ challenge: 'challenge' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
+
+// ---
+// Utilidades: format date
+// ---
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+
+async function loadFiles() {
+
+  // Obtener archivos desde la API
+  const accessToken = sessionStorage.getItem('access_token');
+  const res = await fetch('/api/v1/files', { headers: { 'Authorization': 'Bearer ' + accessToken } });
+
+  // Token inválido o expirado, redirigir al login
+  if (res.status === 401) {
+    sessionStorage.clear();
+    window.location.href = 'login.html';
+    return;
+  }
+
+  if (!res.ok) {
+    $('#empty-msg').text('Error al cargar archivos.').removeClass('text-muted').addClass('text-danger');
+    return;
+  }
+
+  const files = await res.json();
+  if (files.length > 0) {
+    $('#empty-msg').hide();
+    files.forEach(file => {
+      $('#file-list').append(`
+        <tr>
+          <td>${file.name}</td>
+          <td>${formatSize(file.size)}</td>
+          <td>${formatDate(file.creation_date)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" data-id="${file.file_id}">Descargar</button>
+            <button class="btn btn-sm btn-outline-secondary" data-id="${file.file_id}">Compartir</button>
+          </td>
+        </tr>
+      `);
     });
   }
 
-  if (url.endsWith('/auth/verify')) {
-    console.log('[MOCK] POST /api/v1/auth/verify', options.body);
-    return new Response(JSON.stringify({ access_token: "access_token" }), { 
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-  }
-
-  // Resto de fetchs sin cambios
-  return originalFetch(url, options);
-};
-*/
+}
 
 
 // ---
 // main
 // ---
 $(function () {
+
+  // Hay usuarios? 
   const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
   if (Object.keys(users).length === 0) {
     window.location.href = 'register.html';
     return;
   }
 
-  const $form = $('#login-form');
-  const $select = $('#user-select');
-  const $error = $('#error-msg');
-  const $output = $('#output');
-
-  // Llenar el selector de usuarios (alias + user_id)
-  for (const [userId, user] of Object.entries(users)) {
-    $select.append($('<option>').val(userId).text(`${user.alias} (${userId.slice(0, 18)}...)`));
+  // Cargamos info usuario
+  const userId = sessionStorage.getItem('active_user_id') || '';
+  if (!userId) {
+    window.location.href = 'login.html';
+    return;
   }
 
-  // Activación de btn si introducida password
-  $('#login-btn').prop('disabled', true);
-  $('#password').on('input', function () {
-    $('#login-btn').prop('disabled', $(this).val().trim().length == 0);
+  const alias = users[userId].alias;
+  $('#user-alias').text(alias);
+
+  // Obtenemos archivos desde la API y mostramos
+  loadFiles(); 
+
+  // Botón cerrar sesión (limpia storage y redirige)
+  $('#logout-btn').click(() => {
+    sessionStorage.clear();
+    window.location.href = 'login.html'; 
   });
 
-
-  // ---
-  // click login-btn
-  // ---
-  $('#login-btn').on('click', async () => {
-    $error.text('');
-    $output.text('');
-
-    const userId = $select.val();
-    const password = $('#password').val();
-
-    try {
-      // Intentamos obtener y desbloquear la clave privada
-      const privateKey = await unlockPrivateKey(userId, password);
-      $output.text('Clave descifrada correctamente.');
-
-      // Guardamos user_id y private_key en sesión, TODO: buscar forma mas segura
-      sessionStorage.setItem('active_user_id', userId);
-      sessionStorage.setItem('dfs3_private_key', bufferToBase64(privateKey));
-
-      // Iniciamos el desafio / respuesta enviando nuestro user_id 
-      const challengeRes = await fetch('/api/v1/auth/challenge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId })
-      });
-
-      // TODO: Control de error ???
-      // ...
-
-      // Capturamos la respuesta y la firmamos con nuestra clave privada
-      const { challenge } = await challengeRes.json();
-      const signature = await sign(toBytes(challenge), privateKey);
-      const verifyRes = await fetch('/api/v1/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, signature: bufferToBase64(signature) })
-      });
-
-      if (verifyRes.ok) {
-        // Nos quedamos con el token devuelto 
-        const { access_token } = await verifyRes.json();
-        sessionStorage.setItem('access_token', access_token);
-        console.log('Access token:', access_token);
-
-        // Vamos a la siguiente pagina
-        window.location.href = 'upload.html'; 
-
-      } else {
-        $error.text('Autenticación fallida.');
-      }
-
-    } catch (e) {
-      $error.text('Contraseña incorrecta o datos corruptos.');
-      console.log(e);
-    }
-
-  });
-
-  $('#go-register').on('click', () => {
-    window.location.href = 'register.html';
+  // Botón subir nuevo archivo
+  $('#new-upload-btn').click(() => {
+    window.location.href = 'upload.html';
   });
 
 });
+

@@ -1,12 +1,11 @@
 """
-Module: client.py
+Module: iota/client.py
 Description: Handles interaction with IOTA node to publish events using tagged data payloads.
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,28 +29,18 @@ Created: 2025-05-01
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import requests
 import json
+
 from config.settings import IOTA_NODE_URL
+from utils.logger import LOG, WRN, ERR, DBG
 
 
 def publish_event(event: dict, tag: str = "dfs3") -> str:
     """
     Publishes a JSON event to the IOTA Tangle using tagged data payload.
-
-    Args:
-        event: The event dictionary to publish.
-        tag: A short UTF-8 string identifying the type/source (e.g. "dfs3").
-
-    Returns:
-        block_id: The ID of the block published to IOTA.
-
-    Raises:
-        RuntimeError: If the POST request fails or returns an error status.
     """
-
     tag_hex = "0x" + tag.encode("utf-8").hex()
     data_hex = "0x" + json.dumps(event).encode("utf-8").hex()
 
@@ -67,7 +56,10 @@ def publish_event(event: dict, tag: str = "dfs3") -> str:
     # Enviamos mensaje como peticion http
     response = requests.post(IOTA_NODE_URL, json=block)
     if response.status_code in [201, 202]:
-        return response.json()["blockId"]
+        block_id = response.json()["blockId"]
+        LOG(f"Event published to IOTA with block_id: {block_id}")
+        return block_id
+
     else:
         raise RuntimeError(f"Failed to publish event: {response.status_code} - {response.text}")
 
@@ -75,17 +67,7 @@ def publish_event(event: dict, tag: str = "dfs3") -> str:
 def fetch_event(block_id: str) -> dict:
     """
     Retrieves and parses a JSON event from IOTA using its block ID.
-
-    Args:
-        block_id: The IOTA block ID to retrieve.
-
-    Returns:
-        The decoded JSON event dictionary.
-
-    Raises:
-        RuntimeError: If retrieval or decoding fails.
     """
-
     # Buscamos el bloque en IOTA a traves de su URL
     response = requests.get(f"{IOTA_NODE_URL}/{block_id}")
     if response.status_code != 200:

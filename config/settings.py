@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio
 #
@@ -30,9 +29,8 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
-import os
+from os import path, getenv
 from dotenv import load_dotenv
 from core.constants import Verbosity
 
@@ -45,31 +43,40 @@ load_dotenv()
 # ---
 
 # Nivel global de verbosidad
-VERBOSITY_LEVEL = os.environ.get("DFS3_VERBOSITY_LEVEL", Verbosity.DEBUG) 
-
-# Fichero de configuración
-CONFIG_PATH = os.environ.get("DFS_CONFIG_PATH", "config/node.json")
+VERBOSITY_LEVEL = getenv("DFS3_VERBOSITY_LEVEL", Verbosity.DEBUG) 
 
 # MQTT Configuration
-MQTT_BROKER = os.environ.get("DFS3_MQTT_BROKER", "mqtt.dfs3.net")
-MQTT_PORT = int(os.environ.get("DFS3_MQTT_PORT", 1883))
-MQTT_TOPIC = os.environ.get("DFS3_MQTT_TOPIC", "dfs3/events")
+MQTT_BROKER = getenv("DFS3_MQTT_BROKER", "mqtt.dfs3.net")
+MQTT_PORT = int(getenv("DFS3_MQTT_PORT", 1883))
+MQTT_TOPIC = getenv("DFS3_MQTT_TOPIC", "dfs3/events")
 
 # Directorio donde iran todos los datos
-DATA_DIR = os.environ.get("DFS3_DATA_DIR", "data")
+DATA_DIR = getenv("DFS3_DATA_DIR", "data")
+
+# Fichero de configuracion node.json
+CONFIG_PATH = getenv("DFS_CONFIG_PATH", path.join(DATA_DIR, "node.json"))
 
 # Database
-DB_FILE = os.path.join(DATA_DIR, "dfs3.db")
+DB_FILE = getenv("DFS_DB_FILE", path.join(DATA_DIR, "dfs3.db"))
+
+# Storage dir
+STORAGE_DIR = getenv("DFS_STORAGE_DIR", path.join(DATA_DIR, ".storage"))
+
+# Meta dir
+META_DIR = getenv("DFS_META_DIR", path.join(DATA_DIR, ".meta"))
+
+# Users dir
+USERS_DIR = getenv("DFS_USERS_DIR", path.join(DATA_DIR, ".users"))
 
 # Verbosity (LOW=1, MEDIUM=2, HIGH=3)
-LOG_VERBOSITY = Verbosity.HIGH
+LOG_VERBOSITY = getenv("DFS_LOG_VERBOSITY", Verbosity.HIGH)
 
 # URL de acceso al nodo IOTA usado para las pruebas
-IOTA_NODE_URL = os.getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/v2/blocks")
+IOTA_NODE_URL = getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/v2/blocks")
 
 # Puerto en el que se ejecuta el servicio
-PORT = os.getenv("DFS3_PORT", 1234)
+API_PORT = int(getenv("DFS3_API_PORT", 8008))
 
 # Cada cuanto actualizamos el estado del nodo
-UPDATE_STATUS_INTERVAL = os.getenv("DFS3_UPDATE_STATUS_INTERVAL", 300)
+UPDATE_STATUS_INTERVAL = int(getenv("DFS3_UPDATE_STATUS_INTERVAL", 300))
 

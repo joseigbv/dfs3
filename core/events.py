@@ -6,7 +6,6 @@ License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,16 +29,15 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import json
 import base64
 import datetime
 import platform
 
-from config.settings import DATA_DIR, PORT
+from config.settings import DATA_DIR, API_PORT
 from core import context
-from core.constants import SW_VERSION, PROTOCOL, EV_NODE_REGISTERED, EV_NODE_STATUS, EV_USER_REGISTERED
+from core.constants import SW_VERSION, PROTOCOL, EV_NODE_REGISTERED, EV_NODE_STATUS, EV_USER_REGISTERED, EV_USER_JOINED_NODE, EV_FILE_CREATED
 from utils.logger import LOG, WRN, ERR, DBG
 from utils.system import get_uptime_seconds, get_total_disk_space, get_local_ip
 from utils.time import iso_now
@@ -48,23 +46,15 @@ from iota.client import publish_event as publish_event_to_iota
 from mqtt.client import publish_event as publish_event_to_mqtt
 
 
-def publish_event(event: dict) -> str:
+def publish_event(event: dict) -> str | None:
     """
     Publishes an event to IOTA and notifies other nodes via MQTT with the resulting block_id.
-
-    Args:
-        event: The full event dictionary to be published.
-
-    Returns:
-        None
     """
-
     try:
         LOG(f"Publishing event to IOTA: {event['event_type']}")
         block_id = publish_event_to_iota(event)
-        LOG(f"Event published to IOTA with block_id: {block_id}")
 
-        # Send block_id via MQTT as control channel
+        LOG(f"Publishing event to MQTT: {block_id}")
         publish_event_to_mqtt(block_id, event)
 
     except Exception as e:
@@ -74,6 +64,9 @@ def publish_event(event: dict) -> str:
 
  
 def build_event(event_type: str, payload: dict) -> dict:
+    """
+    Constructs an event with the given type and payload, adding metadata fields and signs it.
+    """
     event = {
         "event_type": event_type,
         "timestamp": iso_now(),
@@ -92,11 +85,7 @@ def build_event(event_type: str, payload: dict) -> dict:
 def build_node_registered_event() -> dict:
     """
     Constructs a node_registered event from the given node config and signs it.
-
-    Returns:
-        A dictionary representing the signed node_registered event.
     """
-
     payload = {
         "alias": context.config.get("alias", "unnamed-node"),
         "hostname": context.config["hostname"],
@@ -107,38 +96,48 @@ def build_node_registered_event() -> dict:
         "uptime": get_uptime_seconds(),
         "total_space": get_total_disk_space(DATA_DIR),
         "ip": get_local_ip(),
-        "port": int(context.config.get("port", PORT)),
+        "port": int(context.config.get("port", API_PORT)),
         "tags": context.config.get("tags", []),
     }
 
-
-    # Devolvemos evento completo firmado
     return build_event(EV_NODE_REGISTERED, payload)
 
 
 def build_node_status_event() -> dict:
     """
     Constructs a node_status event including dynamic status info and a digital signature.
-
-    Returns:
-        The full event dictionary ready for publishing.
     """
-
     payload = {
         "ip": get_local_ip(),
-        "port": int(context.config.get("port", PORT)),
+        "port": int(context.config.get("port", API_PORT)),
         "uptime": get_uptime_seconds(),
         "total_space": get_total_disk_space()
     }
 
-    # Devolvemos evento completo firmado
     return build_event(EV_NODE_STATUS, payload)
 
 
 def build_user_registered_event(payload: dict) -> dict:
+    """
+    Builds a user_created event from the given user registration data.
+    """
     # TODO: Revisar tratamiento de payload
-    # payload = ...
-
-    # Devolvemos evento completo firmado
     return build_event(EV_USER_REGISTERED, payload)
+
+
+def build_user_joined_node_event(payload: dict) -> dict:
+    """
+    Builds a user_joined_node event from the given login verification data.
+    """
+    # TODO: Revisar tratamiento de payload
+    return build_event(EV_USER_JOINED_NODE, payload)
+
+
+def build_file_created_event(payload: dict) -> dict:
+    # TODO: verificar payload, asumimos que viene bien de la api (pydantic)
+    payload["creation_date"] = iso_now()
+    payload["version"] = 1
+    payload["replica_nodes"] = [context.config["node_id"]]
+
+    return build_event(EV_FILE_CREATED, payload)
 

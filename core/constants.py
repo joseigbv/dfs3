@@ -1,12 +1,11 @@
 """
-Module: constants.py
+Module: core/constants.py
 Description: Central definitions for constants and global patterns used throughout dfs3
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
 
-# =============================================================
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -30,7 +29,6 @@ Created: 2025-04-30
 #
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
-# =============================================================
 
 import re
 from enum import IntEnum
@@ -44,13 +42,10 @@ class Verbosity(IntEnum):
     DEBUG = 4
 
 
+# Lista global de tipos de eventos válidos en dfs3
 EV_USER_REGISTERED = "user_registered"
-#EV_UPDATED = "user_updated"
-#EV_USER_DELETED = "user_deleted"
 EV_USER_JOINED_NODE = "user_joined_node"
 EV_NODE_REGISTERED = "node_registered"
-#EV_NODE_UNREGISTERED = "node_unregistered"
-#EV_NODE_UPDATED = "node_updated"
 EV_NODE_STATUS = "node_status"
 EV_FILE_CREATED = "file_created"
 EV_FILE_DELETED = "file_deleted"
@@ -60,15 +55,10 @@ EV_FILE_REPLICATED = "file_replicated"
 EV_FILE_RENAMED = "file_renamed"
 EV_FILE_ACCESSED = "file_accessed"
 
-# Lista global de tipos de eventos válidos en dfs3
 VALID_EVENT_TYPES = {
     EV_USER_REGISTERED,
-#    EV_UPDATED, 
-#    EV_USER_DELETED,
     EV_USER_JOINED_NODE,
     EV_NODE_REGISTERED, 
-#    EV_NODE_UNREGISTERED,
-#    EV_NODE_UPDATED,
     EV_NODE_STATUS,
     EV_FILE_CREATED,
     EV_FILE_DELETED,
@@ -83,10 +73,29 @@ VALID_EVENT_TYPES = {
 SW_VERSION = "dfs3-node/0.1.0" 
 PROTOCOL = "dfs3/1.0"
 
-# Expresión regular para validar un SHA-256 en formato hexadecimal con prefijo 0x
-SHA256_HEX_PATTERN = re.compile(r"^0x[a-fA-F0-9]{64}$")
-
 # Otras expresiones regulares para validacion
+RE_BLOCK_ID = r"^0x[a-f0-9]{64}$"
 RE_USER_ID = r"^[a-f0-9]{64}$"
 RE_ALIAS = r"^[a-z0-9_-]{3,20}$"
+RE_FILE_ID = RE_USER_ID
+RE_NODE_ID = RE_USER_ID
+RE_FILENAME = r"^[\w\-. ]{1,100}$"
+RE_TAG = r"[\w\-\.]{1,20}"
+RE_BASE64 = r"^[A-Za-z0-9+/]{4,}={0,2}$"
+RE_MIMETYPE = r"^[a-zA-Z0-9!#$&^_-]+/[a-zA-Z0-9!#$&^_.+-]+$"
+
+# Expresión regular para validar un SHA-256 en formato hexadecimal con prefijo 0x
+SHA256_HEX_PATTERN = re.compile(RE_BLOCK_ID)
+
+# Mimetypes permitidos
+ALLOWED_MIMETYPES = {
+    "application/pdf",
+    "text/plain",
+    "image/png",
+    "image/jpeg",
+    "application/zip",
+}
+
+# Tamaño máximo de fichero permitido
+MAX_FILE_SIZE = 10_000_000 # 10MB aprox.
 
