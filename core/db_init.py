@@ -59,7 +59,9 @@ def create_db():
             name TEXT,
             email TEXT,
             public_key TEXT NOT NULL,
-            tags TEXT DEFAULT '[]',
+            tags TEXT,
+            creation_date TIMESTAMP NOT NULL, 
+            last_seen TIMESTAMP NOT NULL,
             version INTEGER DEFAULT 1 
         )
         ''')
@@ -70,7 +72,6 @@ def create_db():
             node_id TEXT PRIMARY KEY,
             alias TEXT, 
             hostname TEXT,
-            version INTEGER NOT NULL,
             public_key TEXT NOT NULL,
             platform TEXT,
             software_version TEXT,
@@ -81,40 +82,11 @@ def create_db():
             tags TEXT,
             creation_date TIMESTAMP NOT NULL, 
             last_seen TIMESTAMP NOT NULL
-        )
-        ''')
-
-        # Tabla de ficheros
-        cursor.execute('''
-        CREATE TABLE files (
-            file_id TEXT PRIMARY KEY,
-            owner_id TEXT NOT NULL,
-            size INTEGER,
-            created_at TEXT,
-            modified_at TEXT,
-            md5_original TEXT,
-            mimetype TEXT,
-            tags TEXT DEFAULT '[]',
-            replica_nodes TEXT DEFAULT '[]',
-            encrypted_keys TEXT,
             version INTEGER DEFAULT 1,
-            FOREIGN KEY (owner_id) REFERENCES users(user_id)
         )
         ''')
 
-        # Tabla de entradas
-        cursor.execute('''
-        CREATE TABLE entries (
-            user_id TEXT NOT NULL,
-            file_id TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            PRIMARY KEY (user_id, filename),
-            FOREIGN KEY (user_id) REFERENCES users(user_id),
-            FOREIGN KEY (file_id) REFERENCES files(file_id)
-        )
-        ''')
-
-        # Tabla de entradas
+        # Tabla de eventos
         cursor.execute('''
         -- Table: events
         CREATE TABLE events (
@@ -136,9 +108,14 @@ def create_db():
             node_id TEXT NOT NULL,
             FOREIGN KEY (node_id) REFERENCES nodes(node_id)
         );
+        ''')
 
-        -- CREATE INDEX idx_events_event_type ON events(event_type);
-        -- CREATE INDEX idx_events_node_id ON events(node_id);
+        cursor.execute('''
+        CREATE INDEX idx_events_event_type ON events(event_type);
+        ''')
+
+        cursor.execute('''
+        CREATE INDEX idx_events_node_id ON events(node_id);
         ''')
 
         conn.commit()

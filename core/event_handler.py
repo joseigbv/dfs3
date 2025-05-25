@@ -5,7 +5,6 @@ Author: José Ignacio
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -37,28 +36,52 @@ from base64 import b64decode
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from nacl.encoding import RawEncoder
-from config.settings import DATA_DIR
+from config.settings import DB_FILE
 from utils.logger import LOG, WRN, ERR, DBG
-from utils.time import iso_to_epoch
-from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN
-from core.nodes import save_node, update_node, get_node_public_key
-from core.users import register as register_user
-from core.files import create as create_file 
 from core import context
+from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN, EV_NODE_REGISTERED
+from core.nodes import (
+    save as save_node, 
+    update as update_node, 
+    get_public_key as get_public_key_node
+)
+from core.users import (
+    register as register_user, 
+    update as update_user
+)
+from core.files import (
+    create as create_file, 
+    share as share_file,
+    rename as rename_file,
+    delete as delete_file,
+    replicate as replicate_file, 
+)
+from models.events import (
+    BaseEvent, 
+    NodeRegisteredEvent,
+    NodeStatusEvent,
+    UserRegisteredEvent,
+    UserJoinedNodeEvent,
+    FileCreatedEvent, 
+    FileSharedEvent,
+    FileAccessedEvent,
+    FileRenamedEvent,
+    FileDeletedEvent,
+    FileReplicatedEvent
+)
 
 
-def save_event_to_db(block_id: str, event: dict):
+def save_event(block_id: str, event: BaseEvent):
     """
     Saves a minimal reference of an event into the local SQLite database.
     """
+    event_type = event.event_type
+    timestamp = int(event.timestamp.timestamp())
+    node_id = event.node_id
+
     try:
-        event_type = event["event_type"]
-        timestamp = iso_to_epoch(event["timestamp"])
-        node_id = event["node_id"]
-
-        conn = sqlite3.connect(f"{DATA_DIR}/dfs3.db")
+        conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-
         cursor.execute("""
             INSERT INTO events (block_id, event_type, timestamp, node_id)
             VALUES (?, ?, ?, ?)
@@ -73,145 +96,160 @@ def save_event_to_db(block_id: str, event: dict):
         ERR(f"Failed to save event {event_type} in DB: {e}")
 
 
-def verify_signature(event: dict) -> bool:
+def verify_signature(event: BaseEvent) -> bool:
     """
     Verifies the digital signature of a signed dfs3 event.
     """
     # Solo en el caso de alta de nodo, se saca la clave publica del evento
-    if event['event_type'] == 'node_registered':
-        public_key_bytes = b64decode(event["payload"]["public_key"])
+    if event.event_type == EV_NODE_REGISTERED:
+        public_key_bytes = b64decode(event.payload["public_key"])
+
     else:
         # Deberiamos tener el node_id en db
-        public_key_bytes = b64decode(get_node_public_key(event['node_id']))
+        public_key_b64 = get_public_key_node(event.node_id)
+        if not public_key_b64:
+            ERR(f"Public key not found for node {event.node_id}")
+            return False
 
-    # Primero nos quedamos con la firma
-    signature = b64decode(event["signature"])
+        public_key_bytes = b64decode(public_key_b64)
 
-    # Eliminamos para reconstruir el contenido firmado
-    event_copy = event.copy()
-    del event_copy["signature"]
+    # Reconstruimos el contenido firmado (sin signature) para validar firma
+    # BUG: Object of type datetime is not JSON serial...
+    event_dict = json.loads(event.json(exclude={"signature"})) 
+    content = json.dumps(event_dict, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    signature = b64decode(event.signature)
 
-    # Verificamos signature o error
-    content = json.dumps(event_copy, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    verify_key = VerifyKey(public_key_bytes, encoder=RawEncoder)
-    verify_key.verify(content, signature)
+    try:
+        # Verificamos signature o error
+        verify_key = VerifyKey(public_key_bytes, encoder=RawEncoder)
+        verify_key.verify(content, signature)
+
+    except BadSignatureError as e:
+        ERR(f"Invalid signature: {e}")
+        return False
 
     return True
 
 
-def validate_event(event: dict) -> bool:
-    """
-    Validates the structure and content of a IOTA event.
-    """
-    # Estos campos son obligatorios
-    required_fields = {"event_type", "timestamp", "node_id", "payload", "signature"}
-
-    # TODO: aniadir validacion de timestamp y filtrar caracteres de entrada
-    if not isinstance(event, dict):
-        return False
-    if not required_fields.issubset(event.keys()):
-        return False
-    if event["event_type"] not in VALID_EVENT_TYPES:
-        return False
-    if not SHA256_HEX_PATTERN.match("0x" + event["node_id"]):
-        return False
-
-    # La firma es valida?
-    try:
-        verify_signature(event)
-        return True
-
-    except (KeyError, ValueError, BadSignatureError) as e:
-        WRN(f"Invalid signature: {e}")
-        return False
-
-
-def handle_node_registered(event: dict, block_id: str):
+def handle_node_registered(event: BaseEvent, block_id: str):
     """
     Handles a node_status event.
     """
-    # Almacenamos en db
-    save_node(event)
-
+    save_node(NodeRegisteredEvent(**event.dict()))
     LOG(f"Node registered from {block_id}")
 
 
-def handle_node_status(event: dict, block_id: str):
+def handle_node_status(event: BaseEvent, block_id: str):
     """
     Handles a node_status event.
     """
-    # Actualizamos en db
-    update_node(event)
-
+    update_node(NodeStatusEvent(**event.dict()))
     LOG(f"Node updated from {block_id}")
 
 
-def handle_user_registered(event: dict, block_id: str):
+def handle_user_registered(event: BaseEvent, block_id: str):
     """
     Handles a user_created event by registering the user and storing the event reference.
     """
-    # TODO: Validar 
-    register_user(event)
-
+    register_user(UserRegisteredEvent(**event.dict()))
     LOG(f"User registered from {block_id}")
 
 
-def handle_user_joined_node(event: dict, block_id: str):
+def handle_user_joined_node(event: BaseEvent, block_id: str):
     """
     Handles a user_joined_node event by recording the event reference for audit purposes.
     """
-    # De momento no es necesario hacer nada, ya registra evento en DB e IOTA
-    pass
+    update_user(UserJoinedNodeEvent(**event.dict()))
+    LOG(f"User updated from {block_id}")
 
 
-def handle_file_created(event: dict, block_id: str):
+def handle_file_created(event: BaseEvent, block_id: str):
     """
     Handles a file_created event by storing the event reference and preparing for future replication.
     """
-    # TODO: Validar 
-    create_file(event)
-
+    create_file(FileCreatedEvent(**event.dict()))
     LOG(f"File created from {block_id}")
 
 
-def handle_generic(event: dict, block_id: str):
+def handle_file_shared(event: BaseEvent, block_id: str):
+    """
+    Handles a file_shared event by storing the event reference and sharing the file.
+    """
+    share_file(FileSharedEvent(**event.dict()))
+    LOG(f"File shared from {block_id}")
+
+
+def handle_file_accessed(event: BaseEvent, block_id: str):
+    """
+    Handles a file_accessed event by storing the event reference.
+    """
+    # TODO: De momento, no hacemos mas, ya esta registrado el evento
+    LOG(f"File accessed from {block_id}")
+
+
+def handle_file_renamed(event: BaseEvent, block_id: str):
+    """
+    Handles a file_renamed event by storing the event reference and renaming the entry.
+    """
+    rename_file(FileRenamedEvent(**event.dict()))
+    LOG(f"File renamed from {block_id}")
+
+
+def handle_file_deleted(event: BaseEvent, block_id: str):
+    """
+    Handles a file_deleted event by storing the event reference and deleting the entry.
+    """
+    delete_file(FileDeletedEvent(**event.dict()))
+    LOG(f"File deleted from {block_id}")
+
+
+def handle_file_replicated(event: BaseEvent, block_id: str):
+    """
+    Handles a file_replicated event by storing the event reference and updating the entry.
+    """
+    replicate_file(FileReplicatedEvent(**event.dict()))
+    LOG(f"File replicated from {block_id}")
+
+
+def handle_generic(event: BaseEvent, block_id: str):
     """
     Handles generic / not defined events.
     """
     WRN(f"Handler for generic event: {event}")
 
 
-# Placeholder: aquí irán más handlers como handle_file_created(), handle_user_updated(), etc.
+# Declaración de handlers para manejo de eventos
 EVENT_HANDLERS = {
     "node_registered": handle_node_registered,
     "node_status": handle_node_status,
     "user_registered": handle_user_registered,
     "user_joined_node": handle_user_joined_node,
     "file_created": handle_file_created,
-    # ...
+    "file_shared": handle_file_shared,
+    "file_accessed": handle_file_accessed,
+    "file_renamed": handle_file_renamed,
+    "file_deleted": handle_file_deleted,
+    "file_replicated": handle_file_replicated
 }
 
 
-def process_event(event: dict, block_id: str):
+def process_event(event: BaseEvent, block_id: str):
     """
     Processes a IOTA event by validating and dispatching it to the appropriate handler.
     """
     DBG(f"IOTA event {block_id}: {event}")
-
-    # Primero, es correcto el formato del mensaje IOTA?
-    if not validate_event(event):
+    if not verify_signature(event):
         WRN(f"Invalid IOTA event: {block_id}")
         return
 
-    # Ahora ya procedemos a ejecutar el manejador para ese tipo 
-    event_type = event["event_type"]
-    handler = EVENT_HANDLERS.get(event_type)
+    # Ejecutamos el manejador para ese tipo de evento
+    handler = EVENT_HANDLERS.get(event.event_type)
     if handler:
         handler(event, block_id)
 
     else:
-        WRN(f"No handler defined for event type: {event_type}")
+        WRN(f"No handler defined for event type: {event.event_type}")
 
     LOG(f"Saving event to DB: {block_id}")
-    save_event_to_db(block_id, event)
+    save_event(block_id, event)
 

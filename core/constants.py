@@ -54,6 +54,9 @@ EV_FILE_COPIED = "file_copied"
 EV_FILE_REPLICATED = "file_replicated"
 EV_FILE_RENAMED = "file_renamed"
 EV_FILE_ACCESSED = "file_accessed"
+EV_FILE_DELETED = "file_deleted"
+EV_FILE_RENAMED = "file_renamed"
+EV_FILE_REPLICATED = "file_replicated"
 
 VALID_EVENT_TYPES = {
     EV_USER_REGISTERED,
@@ -66,23 +69,27 @@ VALID_EVENT_TYPES = {
     EV_FILE_COPIED,
     EV_FILE_REPLICATED,
     EV_FILE_RENAMED,
-    EV_FILE_ACCESSED
+    EV_FILE_ACCESSED,
+    EV_FILE_DELETED,
+    EV_FILE_RENAMED,
+    EV_FILE_REPLICATED
 }
 
 # Version de software y de protocolo
-SW_VERSION = "dfs3-node/0.1.0" 
+SOFTWARE_VERSION = "dfs3-node/0.1.0" 
 PROTOCOL = "dfs3/1.0"
 
 # Otras expresiones regulares para validacion
-RE_BLOCK_ID = r"^0x[a-f0-9]{64}$"
-RE_USER_ID = r"^[a-f0-9]{64}$"
-RE_ALIAS = r"^[a-z0-9_-]{3,20}$"
-RE_FILE_ID = RE_USER_ID
-RE_NODE_ID = RE_USER_ID
-RE_FILENAME = r"^[\w\-. ]{1,100}$"
-RE_TAG = r"[\w\-\.]{1,20}"
-RE_BASE64 = r"^[A-Za-z0-9+/]{4,}={0,2}$"
-RE_MIMETYPE = r"^[a-zA-Z0-9!#$&^_-]+/[a-zA-Z0-9!#$&^_.+-]+$"
+RE_BLOCK_ID: str = r"^0x[a-f0-9]{64}$"
+RE_USER_ID: str = r"^[a-f0-9]{64}$"
+RE_ALIAS: str = r"^[a-z0-9_-]{3,20}$"
+RE_FILE_ID: str = RE_USER_ID
+RE_NODE_ID: str = RE_USER_ID
+RE_FILENAME: str = r"^[\w\-. ]{1,100}$" # r"^(?!.*[\\/:*?\"<>|])[^./][^\\/:*?\"<>|\r\n]{1,254}$"
+RE_TAG: str = r"[\w\-\.]{1,20}"
+RE_BASE64: str = r"^[A-Za-z0-9+/]{4,}={0,2}$"
+RE_MIMETYPE: str = r"^[a-zA-Z0-9!#$&^_-]+/[a-zA-Z0-9!#$&^_.+-]+$"
+RE_HOSTNAME: str = r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$"
 
 # Expresión regular para validar un SHA-256 en formato hexadecimal con prefijo 0x
 SHA256_HEX_PATTERN = re.compile(RE_BLOCK_ID)
@@ -97,5 +104,12 @@ ALLOWED_MIMETYPES = {
 }
 
 # Tamaño máximo de fichero permitido
-MAX_FILE_SIZE = 10_000_000 # 10MB aprox.
+MAX_FILE_SIZE = 10 * 1024 * 1024 # 10MB
+
+# Definiciones relacionadas con erasure coding
+EC_K = 3 # Repartimos fichero en 3 bloques
+EC_M = 2 # Mas 2 bloques de redundancia
+EC_FRAGMENT_SIZE = 1 * 1024 * 1024 # Tamanio de fragmento de 1MB
+EC_BLOCK_SIZE = EC_FRAGMENT_SIZE * EC_K # Tamanio de bloque 3MB
+EC_MIN_SIZE = EC_FRAGMENT_SIZE # Si el fichero es menor de 1MB simplemente clonamos
 

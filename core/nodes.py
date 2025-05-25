@@ -43,15 +43,25 @@ from nacl.encoding import RawEncoder
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 from nacl.pwhash import argon2id
-
-from core.constants import SW_VERSION
+from typing import Optional
+from core.constants import SOFTWARE_VERSION
 from utils.crypto import decrypt_private_key
-from utils.logger import LOG, WRN, ERR, DBG
-from utils.time import iso_to_epoch
-from config.settings import CONFIG_PATH, DATA_DIR, DB_FILE, API_PORT
+from utils.logger import LOG, WRN, ERR, DBG, ABR
+from utils.db import row_to_dict
+from config.settings import CONFIG_PATH, DB_FILE, API_PORT
+from models.events import NodeRegisteredEvent, NodeStatusEvent
+from cachetools import LRUCache, cached
 
 
-def derive_key_from_passphrase(passphrase: str) -> bytes:
+# Para cachear claves publicas y reducir lectura a db
+_public_key_cache: LRUCache[str, Optional[str]] = LRUCache(maxsize=100)
+_node_cache: LRUCache[str, Optional[dict]] = LRUCache(maxsize=10)
+
+def invalidate_node_cache(node_id: str) -> None:
+    _node_cache.pop(node_id, None)
+
+
+def derive_key_from_passphrase(passphrase: str) -> tuple[bytes, bytes]:
     """
     Derives a 32-byte seed from the user's passphrase and salt using Argon2id.
     """
@@ -86,7 +96,7 @@ def generate_node_identity(passphrase: str, alias: str, tags: list[str]) -> tupl
         "hostname": os.uname().nodename,
         "alias": alias,
         "creation_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "version": SW_VERSION,
+        "software_version": SOFTWARE_VERSION,
         "node_id": node_id,
         "port": API_PORT,
         "tags": tags,
@@ -145,42 +155,44 @@ def init_or_load_node(config_path: str = CONFIG_PATH) -> tuple[dict, bytes, bool
     return config, private_key, True
 
 
-def save_node(event: dict):
+def save(event: NodeRegisteredEvent):
     """
     Saves or updates a node in the local database based on a node_registered event.
     """
-    node_id = event["node_id"]
-    payload = event["payload"]
+    node_id = event.node_id
+    payload = event.payload
 
-    alias = payload["alias"]
-    hostname = payload.get("hostname", "")
-    version = payload.get("version", 1)
-    public_key = payload["public_key"]
-    platform = payload.get("platform", "")
-    software_version = payload.get("software_version", "")
-    uptime = payload["uptime"]
-    total_space = payload["total_space"]
-    ip = payload["ip"]
-    port = payload["port"]
-    tags = ",".join(payload.get("tags", []))
+    alias = payload.alias
+    hostname = payload.hostname
+    public_key = payload.public_key
+    platform = payload.platform
+    software_version = payload.software_version
+    uptime = payload.uptime
+    total_space = payload.total_space
+    ip = payload.ip
+    port = payload.port
+    tags = ",".join(payload.tags or [])
+    version = payload.version
 
-    creation_date = iso_to_epoch(event["timestamp"])
-    last_seen = iso_to_epoch(event["timestamp"])
+    tstamp = int(event.timestamp.timestamp())
+    creation_date = tstamp
+    last_seen = tstamp
+
+    # Si en cache, invalidamos
+    invalidate_node_cache(node_id)
 
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-
         cursor.execute("""
             INSERT INTO nodes (
-                node_id, alias, hostname, version, public_key,
+                node_id, alias, hostname, public_key,
                 platform, software_version, uptime, total_space,
-                ip, port, tags, creation_date, last_seen
+                ip, port, tags, creation_date, version, last_seen
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(node_id) DO UPDATE SET
                 alias=excluded.alias,
                 hostname=excluded.hostname,
-                version=excluded.version,
                 public_key=excluded.public_key,
                 platform=excluded.platform,
                 software_version=excluded.software_version,
@@ -190,11 +202,12 @@ def save_node(event: dict):
                 port=excluded.port,
                 tags=excluded.tags,
                 creation_date=excluded.creation_date,
+                version=excluded.version,
                 last_seen=excluded.last_seen
         """, (
-            node_id, alias, hostname, version, public_key,
+            node_id, alias, hostname, public_key,
             platform, software_version, uptime, total_space,
-            ip, port, tags, creation_date, last_seen
+            ip, port, tags, creation_date, version, last_seen
         ))
 
         conn.commit()
@@ -206,24 +219,26 @@ def save_node(event: dict):
         ERR(f"Failed to save node to database: {e}")
 
 
-def update_node(event: dict):
+def update(event: NodeStatusEvent):
     """
     Updates dynamic fields of an existing node in the database based on a node_status event.
     """
-    node_id = event["node_id"]
-    payload = event["payload"]
+    node_id = event.node_id
+    payload = event.payload
 
-    ip = payload["ip"]
-    port = payload["port"]
-    uptime = payload["uptime"]
-    total_space = payload["total_space"]
+    ip = payload.ip
+    port = payload.port
+    uptime = payload.uptime
+    total_space = payload.total_space
 
-    last_seen = iso_to_epoch(event["timestamp"])
+    last_seen = int(event.timestamp.timestamp())
+
+    # Si en cache, invalidamos
+    invalidate_node_cache(node_id)
 
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-
         cursor.execute("""
             UPDATE nodes SET
                 ip = ?,
@@ -249,7 +264,8 @@ def update_node(event: dict):
         ERR(f"Failed to update node from status event: {e}")
 
 
-def get_node_public_key(node_id: str) -> str | None:
+@cached(_public_key_cache)
+def get_public_key(node_id: str) -> str | None:
     """
     Retrieves the base64-encoded public key of a node from the database by node_id.
     """
@@ -265,4 +281,47 @@ def get_node_public_key(node_id: str) -> str | None:
     except Exception as e:
         ERR(f"Failed to retrieve public key for node {node_id}: {e}")
         return None
+
+
+@cached(_node_cache)
+def get(node_id: str) -> dict | None:
+    """
+    Retrieves a node from the database by node_id.
+    """
+    # Consultamos en db si no esta en cache
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,))
+    row = cursor.fetchone()
+    if row:
+        node_data = row_to_dict(cursor, row)
+        conn.close()
+        return node_data
+
+    # Si llegamos aqui, mal
+    conn.close()
+    return None
+
+
+def should_clone_from(source_node_id, size):
+    """
+    Buscamos los tres nodos que tengan espacio suficiente, lleven activos mas de 
+    10 minutos y esten levantados desde hace mas de 1 día
+    """ 
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT node_id
+        FROM nodes
+        WHERE uptime >= 86400
+          AND last_seen >= datetime('now', '-10 minutes')
+          AND available_space > ?
+          AND node_id != ?
+        ORDER BY available_space DESC, node_id ASC
+        LIMIT 3;
+   """, (size, node_id))
+    candidates = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    return context.config["node_id"] in candidates
 

@@ -1,19 +1,5 @@
-import { sha512 } from 'https://esm.sh/@noble/hashes/sha512';
-import { getPublicKey, utils, etc } from 'https://esm.sh/@noble/ed25519';
 import { DFS3_USERS, encryptPrivateKey, bufferToBase64, sha256Hex } from './common.js';
-
-// Error: etc.sha512Sync not set
-etc.sha512Sync = sha512;
-
-
-// ---
-// Genera claves y devuelve ambas
-// ---
-async function generateKeys(password) {
-  const privateKey = utils.randomPrivateKey();
-  const publicKey = await getPublicKey(privateKey);
-  return { publicKey, privateKey };
-}
+import { generateKeys } from './crypto.js';
 
 
 // ---
@@ -33,7 +19,7 @@ async function saveUserKeysToStorage(userId, alias, publicKey, privateKey, passw
     iv: bufferToBase64(iv)
   };
 
-  // Almacenamos en navegador
+  // Y salvamos a storage
   localStorage.setItem(DFS3_USERS, JSON.stringify(users));
 }
 
@@ -92,8 +78,8 @@ $(function () {
       };
 
       const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
         body: JSON.stringify(user)
       });
 
@@ -104,9 +90,6 @@ $(function () {
         // Redirigimos a pagina principal
         $status.text("Usuario registrado. Redirigiendo...");
         setTimeout(() => window.location.href = 'login.html', 2000);
-
-        // Solo para debug
-        console.log(userId);
 
       } else {
         const e = await response.text();

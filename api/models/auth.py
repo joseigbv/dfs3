@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -35,66 +34,58 @@ from pydantic import BaseModel, EmailStr, constr, validator
 from typing import Optional
 from core.constants import RE_USER_ID, RE_ALIAS, RE_BASE64
 from core.validators import validate_base64
+from models.base import StrictBaseModel
 
 
-class RegisterRequest(BaseModel):
+class RegisterRequest(StrictBaseModel):
     """
     Request model for registering a new user.
     """
-    user_id: constr(regex=RE_USER_ID)
-    alias: constr(regex=RE_ALIAS)
+    user_id: constr(regex=RE_USER_ID) # type: ignore[valid-type]
+    alias: constr(regex=RE_ALIAS) # type: ignore[valid-type]
     name: Optional[str] = None
     email: Optional[EmailStr] = None
-    public_key: constr(min_length=44, max_length=512, regex=RE_BASE64)
-
-    class Config:
-        extra = "forbid"
+    public_key: constr(min_length=44, max_length=512, regex=RE_BASE64) # type: ignore[valid-type]
 
     @validator("public_key")
     def validate_public_key(cls, v):
         return validate_base64(v, "public_key")
 
 
-class RegisterResponse(BaseModel):
+class RegisterResponse(StrictBaseModel):
     """
     Response model returned after a successful user registration.
     """
     user_id: str
 
 
-class ChallengeRequest(BaseModel):
+class ChallengeRequest(StrictBaseModel):
     """
     Request model for initiating a login challenge using a user ID.
     """
-    user_id: constr(regex=RE_USER_ID)
-
-    class Config:
-        extra = "forbid"
+    user_id: constr(regex=RE_USER_ID) # type: ignore[valid-type]
 
 
-class ChallengeResponse(BaseModel):
+class ChallengeResponse(StrictBaseModel):
     """
     Response model containing the generated login challenge and timestamp.
     """
     challenge: str
 
 
-class VerifyRequest(BaseModel):
+class VerifyRequest(StrictBaseModel):
     """
     Request model for verifying a signed login challenge.
     """
-    user_id: constr(regex=RE_USER_ID)
-    signature: constr(regex=RE_BASE64)
-
-    class Config:
-        extra = "forbid"
+    user_id: constr(regex=RE_USER_ID) # type: ignore[valid-type]
+    signature: constr(regex=RE_BASE64) # type: ignore[valid-type]
 
     @validator("signature")
     def validate_public_key(cls, v):
         return validate_base64(v, "signature")
 
 
-class VerifyResponse(BaseModel):
+class VerifyResponse(StrictBaseModel):
     """
     Response model returned after successful challenge verification, includes session token.
     """

@@ -32,8 +32,8 @@ Created: 2025-04-30
 #   2025-04-30 - José Ignacio Bravo - Initial creation
 
 import paho.mqtt.client as mqtt
-from pydantic import ValidationError
 
+from pydantic import ValidationError
 from utils.logger import LOG, WRN, ERR, DBG, ABR
 from core.constants import Verbosity
 from config.settings import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
@@ -50,9 +50,8 @@ def on_connect(client, userdata, flags, rc):
     """
     LOG(f"Connected to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}")
     if rc == 0:
-        # Suscribirse al topic, qos=1/2 para hacerlo persistente
         LOG(f"Subscribed to topic: {MQTT_TOPIC}")
-        client.subscribe(MQTT_TOPIC, qos=1)
+        client.subscribe(MQTT_TOPIC, qos=1) # qos=1/2 para persistente
 
     else:
         ABR(f"Failed to connect to MQTT broker, return code {rc}")
@@ -64,6 +63,9 @@ def fetch_and_process_event(block_id: str):
     """
     LOG(f"Fetching event from IOTA with block_id: {block_id}", level=Verbosity.HIGH)
     event = fetch_event(block_id)
+    if not event:
+        raise ValueError("Error feching event.")
+
     process_event(event, block_id)
 
 

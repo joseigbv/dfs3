@@ -40,7 +40,7 @@ from config.settings import UPDATE_STATUS_INTERVAL
 from core import context
 from core.db_init import create_db
 from core.nodes import init_or_load_node
-from core.events import publish_event, build_node_registered_event, build_node_status_event
+from core.events import send_node_registered_event, send_node_status_event
 from mqtt.listener import start as start_mqtt_listener
 from mqtt.client import register as register_mqtt_client
 from api.server import start_api
@@ -98,8 +98,7 @@ async def main():
         register_mqtt_client()
 
         LOG("Node created successfully. Publishing registration event...")
-        event = build_node_registered_event()
-        block_id = publish_event(event)
+        send_node_registered_event()
 
     LOG("Starting MQTT listener...")
     start_mqtt_listener()
@@ -115,11 +114,10 @@ async def main():
 
             # TODO: En un hilo diferente para no bloquear asyncio?
             LOG("Update node status...")
-            event = build_node_status_event()
-            block_id = publish_event(event)
+            send_node_status_event()
 
-    except KeyboardInterrupt:
-        LOG("Shutting down MQTT listener...")
+    except (KeyboardInterrupt, asyncio.exceptions.CancelledError):
+        LOG("Shutting down...")
 
     LOG("Bye!")
 

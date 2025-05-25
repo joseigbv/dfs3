@@ -34,22 +34,20 @@ import requests
 import json
 
 from config.settings import IOTA_NODE_URL
-from utils.logger import LOG, WRN, ERR, DBG
+from utils.logger import LOG, WRN, ERR, DBG, ABR
+from models.events import BaseEvent
 
 
-def publish_event(event: dict, tag: str = "dfs3") -> str:
+def publish_event(event: BaseEvent, tag: str = "dfs3") -> str:
     """
     Publishes a JSON event to the IOTA Tangle using tagged data payload.
     """
-    tag_hex = "0x" + tag.encode("utf-8").hex()
-    data_hex = "0x" + json.dumps(event).encode("utf-8").hex()
-
     block = {
         "protocolVersion": 2,
         "payload": {
             "type": 5,  # TaggedData
-            "tag": tag_hex,
-            "data": data_hex
+            "tag": "0x" + tag.encode("utf-8").hex(),
+            "data": "0x" + event.json().encode("utf-8").hex()
         }
     }
 
@@ -64,7 +62,7 @@ def publish_event(event: dict, tag: str = "dfs3") -> str:
         raise RuntimeError(f"Failed to publish event: {response.status_code} - {response.text}")
 
 
-def fetch_event(block_id: str) -> dict:
+def fetch_event(block_id: str) -> BaseEvent | None:
     """
     Retrieves and parses a JSON event from IOTA using its block ID.
     """
@@ -73,19 +71,23 @@ def fetch_event(block_id: str) -> dict:
     if response.status_code != 200:
         raise RuntimeError(f"Error fetching block: {response.status_code} - {response.text}")
 
-    # Ahora extraemos el payload, que es lo que nos interesa
-    block_data = response.json()
-    payload = block_data.get("payload", {})
+    # Extraemos payload (IOTA lo llama asi) que es nuestro evento
+    payload = response.json().get("payload", {})
     if payload.get("type") != 5:
-        raise RuntimeError("Block does not contain TaggedDataPayload.")
+        ERR("Block does not contain TaggedDataPayload.")
+        return None
 
     try:
         data_hex = payload.get("data", "")
         real_bytes = bytes.fromhex(data_hex[2:] if data_hex.startswith("0x") else data_hex)
         json_text = real_bytes.decode("utf-8")
-
-        return json.loads(json_text)
+  
+        # Validamos y convertimos a objeto
+        event = BaseEvent.parse_raw(json_text)
 
     except Exception as e:
-        raise RuntimeError(f"Failed to decode event data: {e}")
+        ERR(f"Failed to decode event data: {e}")
+        return None
+
+    return event 
 

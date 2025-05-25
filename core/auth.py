@@ -34,7 +34,7 @@ Created: 2025-05-01
 from base64 import b64encode
 from cachetools import TTLCache
 from os import urandom
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, status
 from utils.time import epoch_now
 
 
@@ -82,13 +82,19 @@ def require_auth(authorization: str = Header(...)) -> str:
     """
     # Buscamos la cabecera Authorization: Bearer <token> ...
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header"
+        )
 
     # Extraemos token de sesion y sacamos user_id
     token = authorization.removeprefix("Bearer ").strip()
     user_id = _session_tokens.get(token)
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
 
     return user_id
 

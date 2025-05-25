@@ -56,8 +56,8 @@ $(function () {
 
       // Iniciamos el desafio / respuesta enviando nuestro user_id 
       const challengeRes = await fetch('/api/v1/auth/challenge', {
-        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
         body: JSON.stringify({ user_id: userId })
       });
 
@@ -68,8 +68,8 @@ $(function () {
       const { challenge } = await challengeRes.json();
       const signature = await sign(toBytes(challenge), privateKey);
       const verifyRes = await fetch('/api/v1/auth/verify', {
-        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
         body: JSON.stringify({ user_id: userId, signature: bufferToBase64(signature) })
       });
 

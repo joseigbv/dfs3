@@ -31,6 +31,10 @@ Created: 2025-04-30
 # Change history:
 #   2025-04-30 - José Ignacio Bravo - Initial creation
 
-config = None
-private_key = None
+from typing import Optional, Dict, Any
+
+
+# Inicializamos vacias
+config: Optional[Dict[str, Any]] = {}
+private_key: bytes = b""
 

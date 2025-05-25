@@ -33,65 +33,101 @@ Created: 2025-05-01
 
 import sqlite3
 
+from utils.logger import LOG, WRN, ERR, DBG, ABR
 from config.settings import DB_FILE
-from utils.time import iso_to_epoch
 from utils.db import row_to_dict
-from cachetools import TTLCache
+from cachetools import LRUCache, cached
+from models.events import UserRegisteredEvent, UserJoinedNodeEvent
 
 
-# cache de 5 minutos para un maximo de 1000 usuarios
-_user_cache: TTLCache[str, dict] = TTLCache(maxsize=10, ttl=300)  
+# cache de 100 elementos, se elimina el más antiguo
+_user_cache: LRUCache[str, dict] = LRUCache(maxsize=100)
+
+def invalidate_user_cache(user_id: str):
+    _user_cache.pop(user_id, None)
 
 
-def register(event: dict):
+def register(event: UserRegisteredEvent):
     """
     Stores a new user in the local database based on a user_created event.
     """
-    node_id = event["node_id"]
-    payload = event["payload"]
+    payload = event.payload
 
-    user_id = payload["user_id"]
-    alias = payload["alias"]
-    name = payload.get("name", "")
-    email = payload.get("email", "")
-    public_key = payload["public_key"]
+    user_id = payload.user_id
+    alias = payload.alias
+    name = payload.name
+    email = payload.email
+    public_key = payload.public_key
+    tags = ",".join(payload.tags or [])
+    version = payload.version
 
-    version = payload.get("version", 1)
-    tags = ",".join(payload.get("tags", []))
+    tstamp = int(event.timestamp.timestamp())
+    creation_date = tstamp
+    last_seen = tstamp
 
-    # TODO: pendiente de añadir creation date y mejora errores
-    creation_date = iso_to_epoch(event["timestamp"])
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (user_id, alias, name, email, public_key, creation_date, last_seen)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, alias, name, email, public_key, creation_date, last_seen))
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO users (user_id, alias, name, email, public_key)
-        VALUES (?, ?, ?, ?, ?)
-    """, (user_id, alias, name, email, public_key))
+        conn.commit()
+        conn.close()
 
-    conn.commit()
-    conn.close()
+    except Exception as e:
+        ERR(f"Failed to update node from status event: {e}")
 
 
+def update(event: UserJoinedNodeEvent):
+    """
+    Update user status in the local database based on a user_joined_node event.
+    """
+    payload = event.payload
+
+    user_id = payload.user_id
+    invalidate_user_cache(user_id)
+    last_seen = int(event.timestamp.timestamp())
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users 
+              SET last_seen = ? 
+              WHERE user_id = ?
+        """, (last_seen, user_id))
+
+        if cursor.rowcount == 0:
+            WRN(f"Node {user_id} not found in DB for update.")
+
+        else:
+            LOG(f"Node {user_id} updated with node_status info.")
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        ERR(f"Failed to update node from status event: {e}")
+
+
+@cached(_user_cache)
 def get(user_id: str) -> dict | None:
     """
     Retrieves a user by user_id from cache or database.
     """
-    # Si en cache, devolvemos
-    if user_id in _user_cache:
-        return _user_cache[user_id]
-
-    # Consultamos en db
+    # Consultamos en db si no esta en cache
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     if row:
         user_data = row_to_dict(cursor, row)
-        _user_cache[user_id] = user_data
         conn.close()
         return user_data
 
+    # Si llegamos aqui, mal
     conn.close()
     return None
 
@@ -107,5 +143,9 @@ def get_public_key(user_id: str) -> str | None:
     """
     Retrieves the public key of a user by user_id from cache or database.
     """
-    return get(user_id).get('public_key', None)
+    user = get(user_id)
+    if not user:
+        return None
+
+    return user.get('public_key', None)
 

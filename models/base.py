@@ -1,11 +1,10 @@
 """
-Module: routes.py
-Description: API route definitions for dfs3 under the /api/v1 prefix, including system status and future endpoints.
+Module: models/ base.py
+Description: 
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
-Created: 2025-05-04
+Created: 2025-05-22
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -28,24 +27,24 @@ Created: 2025-05-04
 # SOFTWARE.
 #
 # Change history:
-#   2025-04-30 - José Ignacio Bravo - Initial creation
+#   2025-05-22 - José Ignacio Bravo - Initial creation
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
-from api.routes import auth, files
-from core.constants import SOFTWARE_VERSION
+from pydantic import BaseModel
 
 
-# instancia de enrutador modular
-router = APIRouter()
-router.include_router(auth.router, prefix="/auth")
-router.include_router(files.router)
+class FileEntry(BaseModel):
+    name: str
+    file_id: str
+    size: int
+    mimetype: str
+    creation_date: str
 
 
-@router.get("/status")
-async def get_status():
+class StrictBaseModel(BaseModel):
     """
-    Returns the current status of the dfs3 API service (testing).
+    Para evitar tener que añadir extra = "forbit" al resto de clases 
     """
-    return JSONResponse(content={ "status": "ok", "message": SOFTWARE_VERSION })
+    class Config:
+        extra = "forbid"
+
 

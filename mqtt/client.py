@@ -36,10 +36,10 @@ import paho.mqtt.client as mqtt
 from config.settings import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
 from utils.logger import LOG, WRN, ERR, DBG, ABR
 from core import context
-from models.events import MqttEventNotification
+from models.events import MqttEventNotification, BaseEvent
 
 
-def publish_event(block_id: str, event: dict):
+def publish_event(block_id: str, event: BaseEvent):
     """
     Publishes the given block_id to the MQTT topic to notify other nodes.
     """
@@ -47,9 +47,9 @@ def publish_event(block_id: str, event: dict):
         # Enviar solo el block_id e  info mínima por MQTT
         msg = MqttEventNotification(
             block_id=block_id,
-            event_type=event["event_type"],
-            timestamp=event["timestamp"],
-            node_id=event["node_id"]
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            node_id=event.node_id
         )
 
         # Publicación con persistencia
