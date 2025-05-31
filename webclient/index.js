@@ -294,6 +294,7 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
   const fileId = $(this).data('id');
   const fileName = $(this).data('filename');
 
+/*
   try {
     // Primero buscamos metadatos de fichero
     const resMeta = await fetch(`/api/v1/files/${fileId}/meta`, {
@@ -358,6 +359,67 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
       publicKey,
       ownerPublicKey
     ); 
+
+    // Descargamos fichero descifrado con sus metadatos correspondientes
+    // Ojo, usamos el nombre del fichero en la tabla, no de metadatos !!!
+    downloadFile(fileData, fileName, metadata.mimetype);
+
+  } catch (e) {
+    alert('Error al descargar');
+    console.log(e);
+  }
+*/
+
+  try {
+    // Primero buscamos metadatos de fichero
+    const resFile = await fetch(`/api/v1/files/${fileName}`, {
+      headers: { 'Authorization': 'Bearer ' + accessToken },
+      method: 'GET'
+    });
+
+    if (resFile.status === 401) {
+      sessionStorage.clear();
+      window.location.href = 'login.html';
+      return;
+    } 
+
+    if (!resFile.ok) {
+      const e = await resFile.text();
+      throw new Error(e);
+    }
+
+    // Reconstruccion parcial de metadata a partir de cabeceras api
+    const metadata = {
+      'file_id': resFile.headers.get("X-DFS3-File-ID"),
+      'owner': resFile.headers.get("X-DFS3-Owner"),
+      'size': resFile.headers.get("X-DFS3-Size"), 
+      'mimetype': resFile.headers.get("X-DFS3-Mimetype"),
+      'sha256': resFile.headers.get("X-DFS3-SHA256"),
+      'iv': resFile.headers.get("X-DFS3-IV"),
+      'authorized_users': [{
+        'user_id': userId,
+        'encrypted_key': resFile.headers.get("X-DFS3-Encrypted-Key"),
+        'iv': resFile.headers.get("X-DFS3-IV-Key")
+      }],
+      // ...
+    };
+
+    const blob = await resFile.blob();
+    const fileDataEncrypted = new Uint8Array(await blob.arrayBuffer()); 
+
+    // Clave publica del propietario (quien cifro el fichero y dio permisos)
+    const ownerPublicKey = base64ToBuffer(resFile.headers.get("X-DFS3-Public-Key"));
+    console.log(ownerPublicKey);
+
+    // Desciframos para el propietario
+    const fileData = await decryptFile(
+      metadata, // OJO!!!
+      fileDataEncrypted,  
+      userId, 
+      privateKey, 
+      publicKey,
+      ownerPublicKey
+    );
 
     // Descargamos fichero descifrado con sus metadatos correspondientes
     // Ojo, usamos el nombre del fichero en la tabla, no de metadatos !!!

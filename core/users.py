@@ -95,7 +95,7 @@ def register(event: UserRegisteredEvent):
         invalidate_user_cache(user_id)
 
     except Exception as e:
-        ERR(f"Failed to update node from status event: {e}")
+        ERR(f"Failed to register node from registered event: {e}")
 
 
 def update(event: UserJoinedNodeEvent):

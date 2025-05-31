@@ -46,6 +46,7 @@ from utils.logger import LOG, ERR
 from models.base import FileEntry
 from core.auth import require_auth
 from core.constants import MAX_FILE_SIZE, RE_USER_ID, RE_FILE_ID, RE_FILENAME
+from core.users import get_public_key
 from core.events import (
     send_file_created_event, 
     send_file_shared_event, 
@@ -208,7 +209,7 @@ async def api_get_file_data(
     )
 
 
-async def try_fetch_from_node(node_id: str, file_id: str) -> httpx.Response | None:
+async def try_fetch_from_node(node_id: str, file_id: str) -> AsyncIterator[bytes] | None:
     """
     Funcion auxiliar aync para hacer de proxy y solicitar el fichero a otro nodo.
     """
@@ -216,16 +217,36 @@ async def try_fetch_from_node(node_id: str, file_id: str) -> httpx.Response | No
         try:
             # TODO ajustar timeout
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(url, stream=True) # type: ignore
-                if response.status_code == 200:
-                    return response
+                async with client.stream("GET", url) as response:
+                    if response.status_code == 200:
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
+                    else:
+                        return
 
         except Exception as e:
             ERR(e)
-            pass
 
     # Si llegamos, mal
-    return None
+    return
+
+
+async def fetch_wrapper(node_id: str, file_id: str) -> AsyncIterator[bytes] | None:
+    stream = try_fetch_from_node(node_id, file_id)
+    try:
+        # Intentamos obtener el primer chunk para validar que responde
+        first_chunk = await anext(stream)
+
+        # Generamos un nuevo iterador que devuelve ese chunk y el resto
+        async def re_yield():
+            yield first_chunk
+            async for chunk in stream:
+                yield chunk
+
+        return re_yield()
+
+    except Exception:
+        return None
 
 
 async def stream_and_store(source_stream: AsyncIterator[bytes], local_path: OsPath, file_id: str) -> AsyncIterator[bytes]:
@@ -246,7 +267,7 @@ async def stream_and_store(source_stream: AsyncIterator[bytes], local_path: OsPa
 
 @router.get("/files/{filename}", response_class=StreamingResponse)
 async def api_download_file(
-    filename: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
+    filename: constr(regex=RE_FILENAME) = Path(...), # type: ignore[valid-type]
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
     """
@@ -259,6 +280,7 @@ async def api_download_file(
 
         # Extraemos la metainformacion necesaria para descifrarlo
         file_id = metadata["file_id"]
+        owner = metadata["owner"]
         size = metadata["size"]
         iv = metadata["iv"]
         sha256 = metadata["sha256"]
@@ -283,11 +305,16 @@ async def api_download_file(
             detail="Server error"
         )
 
+    print("AAAA")
     if not user_has_access(user_id, file_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
+
+    # Clave publica del propietario del fichero (necesaria)
+    # TODO Incorporar a metadatos de fichero para simplificar
+    owner_public_key = get_public_key(owner)
 
     # Clave criptografica para user_id
     if not (result := get_user_crypto(user_id, file_id)):
@@ -315,9 +342,10 @@ async def api_download_file(
     # Tanto si tenemos el fichero, como si hay que pedirlo, misma cabecera
     headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
-        "Content-Length": size,
         "X-DFS3-File-ID": file_id,
-        "X-DFS3-Size": size,
+        "X-DFS3-Owner": owner,
+        "X-DFS3-Public-Key": owner_public_key,
+        "X-DFS3-Size": str(size),
         "X-DFS3-IV": iv,
         "X-DFS3-SHA256": sha256,
         "X-DFS3-Mimetype": mimetype,
@@ -325,6 +353,7 @@ async def api_download_file(
         "X-DFS3-IV-Key": iv_key
     }
 
+    print("BBBB")
     # Ahora devolvemos datos si los tenemos en local
     storage_path = get_storage_path(file_id)
     if storage_path.is_file():
@@ -334,6 +363,7 @@ async def api_download_file(
             headers=headers
         )
 
+    print("CCCC")
     # No esta en local, vamos a probar con las replicas
     if not (replica_nodes := metadata.get("replica_nodes")):
         raise HTTPException(
@@ -341,23 +371,32 @@ async def api_download_file(
             detail="File not found"
         )
 
-    # Lanzamos peticiones en paralelo para cada nodo hasta que responda uno
-    tasks = [asyncio.create_task(try_fetch_from_node(node, file_id)) for node in replica_nodes]
+    print("DDDD", replica_nodes)
+    # Lanzamos peticiones en paralelo para cada nodo ...
+    tasks = [
+        asyncio.create_task(fetch_wrapper(node, file_id)) 
+        for node in replica_nodes
+    ]
+
+    # ...hasta que responda uno
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 
-    for task in done:
-        # Si ha contestado algun nodo con la replica
-        if (response := task.result()):
-            # Cancelamos el resto de tareas pendientes
-            for t in pending: t.cancel()
+    # Cancelamos tareas pendientes
+    for task in pending: 
+        task.cancel()
 
-            # Y actuamos como proxy, guardando una copia local
+    # Si ha contestado algun nodo con la replica
+    for task in done:
+        # Actuamos como proxy, guardando una copia local
+        if (stream := task.result()):
             return StreamingResponse(
-                stream_and_store(response.aiter_bytes(), storage_path, file_id),
+                #stream_and_store(stream, storage_path, file_id),
+                stream,
                 media_type="application/octet-stream",
                 headers=headers
             )
 
+    print("EEEE")
     # si llegamos aqui, mal
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
