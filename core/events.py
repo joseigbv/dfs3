@@ -36,7 +36,7 @@ from core import context
 from typing import List
 from contextlib import closing
 from utils.logger import LOG, WRN, ERR, DBG
-from utils.system import get_uptime_seconds, get_total_disk_space, get_local_ip
+from utils.system import get_uptime_seconds, get_total_disk_space, get_ip
 from utils.time import iso_now
 from utils.crypto import sign_event
 from config.settings import DATA_DIR, API_PORT, DB_FILE
@@ -158,7 +158,7 @@ def send_node_registered_event() -> str | None:
         "software_version": context.config["software_version"],
         "uptime": get_uptime_seconds(),
         "total_space": get_total_disk_space(DATA_DIR),
-        "ip": get_local_ip(),
+        "ip": get_ip(),
         "port": int(context.config.get("port", API_PORT)),
         "tags": context.config.get("tags", []),
         "version": 1
@@ -186,7 +186,7 @@ def send_node_status_event() -> str | None:
         return None
 
     payload = {
-        "ip": get_local_ip(),
+        "ip": get_ip(),
         "port": int(context.config.get("port", API_PORT)),
         "uptime": get_uptime_seconds(),
         "total_space": get_total_disk_space()

@@ -221,8 +221,6 @@ async def try_fetch_from_node(node_id: str, file_id: str) -> AsyncIterator[bytes
                     if response.status_code == 200:
                         async for chunk in response.aiter_bytes():
                             yield chunk
-                    else:
-                        return
 
         except Exception as e:
             ERR(e)
@@ -305,7 +303,6 @@ async def api_download_file(
             detail="Server error"
         )
 
-    print("AAAA")
     if not user_has_access(user_id, file_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -353,7 +350,6 @@ async def api_download_file(
         "X-DFS3-IV-Key": iv_key
     }
 
-    print("BBBB")
     # Ahora devolvemos datos si los tenemos en local
     storage_path = get_storage_path(file_id)
     if storage_path.is_file():
@@ -363,7 +359,6 @@ async def api_download_file(
             headers=headers
         )
 
-    print("CCCC")
     # No esta en local, vamos a probar con las replicas
     if not (replica_nodes := metadata.get("replica_nodes")):
         raise HTTPException(
@@ -371,7 +366,6 @@ async def api_download_file(
             detail="File not found"
         )
 
-    print("DDDD", replica_nodes)
     # Lanzamos peticiones en paralelo para cada nodo ...
     tasks = [
         asyncio.create_task(fetch_wrapper(node, file_id)) 
@@ -379,24 +373,20 @@ async def api_download_file(
     ]
 
     # ...hasta que responda uno
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    for task in asyncio.as_completed(tasks):
+        if (stream := await task):
+            # Cancelar las tareas restantes
+            for t in tasks:
+                if t is not task:
+                    t.cancel()
 
-    # Cancelamos tareas pendientes
-    for task in pending: 
-        task.cancel()
-
-    # Si ha contestado algun nodo con la replica
-    for task in done:
-        # Actuamos como proxy, guardando una copia local
-        if (stream := task.result()):
+            # Actuamos como proxy, guardando una copia local
             return StreamingResponse(
-                #stream_and_store(stream, storage_path, file_id),
-                stream,
+                stream_and_store(stream, storage_path, file_id),
                 media_type="application/octet-stream",
                 headers=headers
             )
 
-    print("EEEE")
     # si llegamos aqui, mal
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

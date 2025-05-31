@@ -31,6 +31,7 @@ Created: 2025-05-01
 
 import shutil
 import socket
+import requests
 
 
 def get_total_disk_space(path: str = "/") -> int:
@@ -64,6 +65,27 @@ def get_local_ip() -> str:
         ip = s.getsockname()[0]
         s.close()
         return ip
+
     except Exception:
+        ERR(f"Error getting local IP: {e}")
         return "127.0.0.1"
+
+
+def get_public_ip() -> str:
+    """
+    Devuelve la IP pública asociada a la maquina (puede estar detras de un nat)
+    """ 
+    try:
+        response = requests.get('https://api.ipify.org?format=json', timeout=5)
+        return response.json()['ip']
+
+    except Exception as e:
+        ERR(f"Error getting public IP: {e}")
+        return "127.0.0.1"
+
+
+def get_ip() -> str: 
+    # TODO temporal para pruebas
+    return get_public_ip()
+
 
