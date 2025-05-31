@@ -345,7 +345,7 @@ def sync_node_status():
     from mqtt.listener import fetch_and_process_event
     try:
         # Petición para obtener la lista de eventos
-        response = requests.get(api_url)
+        response = requests.get(SEED_NODE_URL)
         response.raise_for_status()
 
         # Generamos la lista de eventos
