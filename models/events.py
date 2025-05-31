@@ -1,5 +1,5 @@
 """
-Module: event.py
+Module: events.py
 Description: Defines Pydantic models for dfs3 event structures, including validation for events
 sent over MQTT and IOTA. Ensures type safety, field restrictions, and consistency across the system.
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
@@ -30,6 +30,8 @@ Created: 2025-05-11
 # Change history:
 #   2025-05-11 - José Ignacio Bravo - Initial creation
 
+import re 
+
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, conint, validator, IPvAnyAddress, EmailStr
 from typing import Literal, Dict, Any, List, Optional
@@ -38,7 +40,16 @@ from core.validators import validate_base64
 from core.constants import (
     RE_BLOCK_ID,
     RE_NODE_ID,
+    RE_FILE_ID,
+    RE_USER_ID,
+    RE_FILENAME,
     RE_BASE64,
+    RE_MIMETYPE,
+    RE_ALIAS,
+    RE_HOSTNAME,
+    RE_TAG,
+    MAX_FILE_SIZE,
+    ALLOWED_MIMETYPES,
     VALID_EVENT_TYPES,
     EV_USER_REGISTERED,
     EV_USER_JOINED_NODE,
@@ -66,7 +77,7 @@ class MqttEventNotification(StrictBaseModel):
     """
     block_id: constr(regex=RE_BLOCK_ID) = Field(...) # type: ignore[valid-type]
     event_type: Literal[*VALID_EVENT_TYPES] # type: ignore[valid-type]
-    timestamp: datetime
+    timestamp: datetime = Field(...) # type: ignore[valid-type]
     node_id: constr(regex=RE_NODE_ID) = Field(...) # type: ignore[valid-type]
 
 
@@ -79,7 +90,7 @@ class BaseEvent(StrictBaseModel):
     Base structure for all DFS3 events, including type, origin, and payload.
     """
     event_type: Literal[*VALID_EVENT_TYPES] # type: ignore[valid-type]
-    timestamp: datetime
+    timestamp: datetime = Field(...) # type: ignore[valid-type]
     node_id: constr(regex=RE_NODE_ID) = Field(...) # type: ignore[valid-type]
     protocol: str = Field(default="dfs3/1.0") # TODO: Mejorar
     signature: constr(regex=RE_BASE64) # type: ignore[valid-type]
@@ -126,13 +137,12 @@ class FileCreatedEventPayload(FileBaseEventPayload):
     """
     Payload for a newly created file, including metadata, access list, and encryption info.
     """
-    size: conint(ge=1, le=MAX_FILE_SIZE) # type: ignore[valid-type]
+    size: conint(ge=0, le=MAX_FILE_SIZE) # type: ignore[valid-type]
     mimetype: constr(regex=RE_MIMETYPE) # type: ignore[valid-type]
     sha256: constr(regex=RE_FILE_ID) # type: ignore[valid-type]
     iv: constr(regex=RE_BASE64) # type: ignore[valid-type]
     authorized_users: List[AuthorizedUserEntry]
     tags: Optional[List[str]] = []  # ojo
-    version: conint(ge=0) = 1 # type: ignore[valid-type]
 
     @validator("mimetype")
     def validate_mimetype(cls, v):

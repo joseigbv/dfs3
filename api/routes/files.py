@@ -38,13 +38,12 @@ import httpx
 
 from pathlib import Path as OsPath
 from typing import List, AsyncIterator
-from pydantic import ValidationError, constr
+from pydantic import ValidationError, constr, conint
 from fastapi import APIRouter, HTTPException, Depends, File, Form, UploadFile, Path, Body, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from utils.time import iso_now
 from utils.logger import LOG, ERR
 from models.base import FileEntry
-from core import context
 from core.auth import require_auth
 from core.constants import MAX_FILE_SIZE, RE_USER_ID, RE_FILE_ID, RE_FILENAME
 from core.events import (
@@ -57,11 +56,11 @@ from core.events import (
 )
 from core.files import (
     list_files, 
+    user_has_access,
     get_metadata_by_id, 
     get_metadata_by_name, 
     get_storage_path, 
     get_owner, 
-    user_has_access,
     get_file_id_by_name,
     get_file_url_for_node,
     get_user_crypto
@@ -79,7 +78,7 @@ router = APIRouter()
 
 
 @router.get("/files", response_model=List[FileEntry])
-async def get_files(
+async def api_get_files(
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
     """
@@ -89,7 +88,7 @@ async def get_files(
 
 
 @router.post("/files", response_model=StatusFileResponse, status_code=status.HTTP_201_CREATED)
-async def upload_file(
+async def api_upload_file(
     data: UploadFile = File(...),
     metadata: str = Form(...),
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
@@ -98,12 +97,6 @@ async def upload_file(
     Receives an encrypted file and its associated metadata, stores the file in the local storage directory,
     and emits a file_created event for later processing by the system.
     """
-    if not context.config:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid context config"
-        )
-
     try:
         # Aqui metadata viene como un string json
         meta = UploadFileMetadata.parse_raw(metadata)
@@ -139,9 +132,6 @@ async def upload_file(
     # Construimos el payload del evento complementando la peticion web
     payload_dict = meta.dict()
     payload_dict["user_id"] = user_id
-    payload_dict["creation_date"] = iso_now()
-    payload_dict["replica_nodes"] = [context.config["node_id"]]
-    payload_dict["version"] = 1
 
     # Publicamos evento 
     block_id = send_file_created_event(payload_dict)
@@ -154,168 +144,14 @@ async def upload_file(
     return StatusFileResponse(status="stored")
 
 
-async def try_fetch_from_node(node_id: str, file_id: str) -> httpx.Response | None:
-    """
-    Funcion auxiliar aync para hacer de proxy y solicitar el fichero a otro nodo.
-    """
-    url = get_file_url_for_node(node_id, file_id)
-    if not url:
-        return None
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(url, stream=True) # type: ignore
-            if response.status_code == 200:
-                return response
-
-    except Exception:
-        pass
-
-    # Si llegamos, mal
-    return None
-
-
-async def stream_and_store(source_stream: AsyncIterator[bytes], local_path: OsPath, file_id: str) -> AsyncIterator[bytes]:
-    """
-    Recibe un stream de bytes y lo envía al cliente mientras lo guarda localmente.
-    """
-    async with aiofiles.open(local_path, "wb") as f:
-        async for chunk in source_stream:
-            await f.write(chunk)
-            yield chunk  # Enviar al cliente
-
-    # Ahora generamos evento para informar al resto de nodos
-    block_id = send_file_replicated_event({"file_id": file_id})
-    if not block_id:
-        ERR(f"Error sending file_replicated event for {file_id}")
-
-    else:
-        LOG(f"File {file_id} successfully cloned")
-
-
-@router.get("/files/{filename}")
-async def download_file(
-    filename: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
-    user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
-):
-    try:
-        # Validamos que el fichero realmente exista
-        _, metadata = get_metadata_by_name(user_id, filename)
-
-        # Y extraemos la metainformacion necearia para descifrarlo
-        file_id = metadata["file_id"]
-        size = metadata["size"]
-        iv = metadata["iv"]
-        sha256 = metadata["sha256"]
-        mimetype = metadata["mimetype"]
-
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
-        )
-
-    except ValidationError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request"
-        )
-
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Server error"
-        )
-
-    if not user_has_access(user_id, file_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-
-    result = get_user_crypto(user_id, file_id)
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-
-    encrypted_key, iv_key = result
-
-    payload_dict = {
-        "user_id": user_id,
-        "file_id": file_id,
-        "filename": filename
-    }
-
-    # Publicamos evento de auditoria
-    block_id = send_file_accessed_event(payload_dict)
-    if not block_id:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error sending event"
-        )
-
-    headers={
-        "Content-Disposition": f'attachment; filename="{filename}"',
-        "Content-Length": size,
-        "X-DFS3-File-ID": file_id,
-        "X-DFS3-Size": size,
-        "X-DFS3-IV": iv,
-        "X-DFS3-SHA256": sha256,
-        "X-DFS3-Mimetype": mimetype,
-        "X-DFS3-Encrypted-Key": encrypted_key,
-        "X-DFS3-IV-Key": iv_key
-    }
-
-    # Ahora devolvemos datos si los tenemos en local
-    storage_path = get_storage_path(file_id)
-    if storage_path.is_file():
-        f = await aiofiles.open(storage_path, "rb")
-        return StreamingResponse(
-            f,
-            media_type="application/octet-stream",
-            headers=headers
-        )
-
-    # No esta en local, vamos a probar con las replicas
-    replica_nodes = metadata.get("replica_nodes")
-    if not replica_nodes:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
-        )
-
-    # Lanzamos peticiones en paralelo para cada nodo hasta que responda uno
-    tasks = [asyncio.create_task(try_fetch_from_node(node, file_id)) for node in replica_nodes]
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for task in done:
-        # Si ha contestado algun nodo con la replica
-        response = task.result()
-        if response:
-            # Cancelamos el resto de tareas pendientes
-            for t in pending:
-                t.cancel()
-
-            # Y actuamos como proxy, guardando una copia local
-            return StreamingResponse(
-                stream_and_store(response.aiter_bytes(), storage_path, file_id),
-                media_type="application/octet-stream",
-                headers=headers
-            )
-
-    # si llegamos aqui, mal
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="File not found"
-    )
-
-
 @router.get("/files/{file_id}/meta")
-async def get_file_meta(
+async def api_get_file_meta(
     file_id: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
+    """
+    Devuelve la metainformación de un fichero identificado por su id
+    """
     try:
         # Validamos que el fichero realmente exista
         _, metadata = get_metadata_by_id(file_id)
@@ -332,7 +168,8 @@ async def get_file_meta(
             detail="Invalid request"
         )
 
-    except Exception:
+    except Exception as e:
+        ERR(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
@@ -344,14 +181,14 @@ async def get_file_meta(
             detail="Access denied"
         )
 
+    # TODO crear un tipo
     return JSONResponse(content=metadata)
 
 
-@router.get("/files/{file_id}/data", response_model=FileResponse)
-async def get_file_data(
+@router.get("/files/{file_id}/data", response_class=FileResponse)
+async def api_get_file_data(
     file_id: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
     # Para clonar, deshabilitamos auth, al fin y al cabo está cifrado !!!
-    #user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
     """
     Retrieves and returns the encrypted content of a file identified by its file_id, 
@@ -371,16 +208,177 @@ async def get_file_data(
     )
 
 
+async def try_fetch_from_node(node_id: str, file_id: str) -> httpx.Response | None:
+    """
+    Funcion auxiliar aync para hacer de proxy y solicitar el fichero a otro nodo.
+    """
+    if (url := get_file_url_for_node(node_id, file_id)):
+        try:
+            # TODO ajustar timeout
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(url, stream=True) # type: ignore
+                if response.status_code == 200:
+                    return response
+
+        except Exception as e:
+            ERR(e)
+            pass
+
+    # Si llegamos, mal
+    return None
+
+
+async def stream_and_store(source_stream: AsyncIterator[bytes], local_path: OsPath, file_id: str) -> AsyncIterator[bytes]:
+    """
+    Recibe un stream de bytes y lo envía al cliente mientras lo guarda localmente.
+    """
+    async with aiofiles.open(local_path, "wb") as f:
+        async for chunk in source_stream:
+            await f.write(chunk)
+            yield chunk
+
+    # Ahora generamos evento para informar al resto de nodos
+    if (block_id := send_file_replicated_event({"file_id": file_id})):
+        LOG(f"File {file_id} successfully cloned")
+    else:
+        ERR(f"Error sending file_replicated event for {file_id}")
+
+
+@router.get("/files/{filename}", response_class=StreamingResponse)
+async def api_download_file(
+    filename: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
+    user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
+):
+    """
+    Descarga un fichero cifrado identificado por filename y devuelve los metadatos 
+    necesarios para su descifrado como cabeceras http
+    """
+    try:
+        # Validamos que el fichero realmente exista
+        _, metadata = get_metadata_by_name(user_id, filename)
+
+        # Extraemos la metainformacion necesaria para descifrarlo
+        file_id = metadata["file_id"]
+        size = metadata["size"]
+        iv = metadata["iv"]
+        sha256 = metadata["sha256"]
+        mimetype = metadata["mimetype"]
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid request"
+        )
+
+    except Exception as e:
+        ERR(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server error"
+        )
+
+    if not user_has_access(user_id, file_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+
+    # Clave criptografica para user_id
+    if not (result := get_user_crypto(user_id, file_id)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+
+    encrypted_key, iv_key = result
+
+    # Construimos el payload del evento a partir de la peticion api
+    payload_dict = {
+        "user_id": user_id,
+        "file_id": file_id,
+        "filename": filename
+    }
+
+    # Publicamos evento de auditoria
+    if not (block_id := send_file_accessed_event(payload_dict)):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error sending event"
+        )
+
+    # Tanto si tenemos el fichero, como si hay que pedirlo, misma cabecera
+    headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Length": size,
+        "X-DFS3-File-ID": file_id,
+        "X-DFS3-Size": size,
+        "X-DFS3-IV": iv,
+        "X-DFS3-SHA256": sha256,
+        "X-DFS3-Mimetype": mimetype,
+        "X-DFS3-Encrypted-Key": encrypted_key,
+        "X-DFS3-IV-Key": iv_key
+    }
+
+    # Ahora devolvemos datos si los tenemos en local
+    storage_path = get_storage_path(file_id)
+    if storage_path.is_file():
+        return StreamingResponse(
+            await aiofiles.open(storage_path, "rb"),
+            media_type="application/octet-stream",
+            headers=headers
+        )
+
+    # No esta en local, vamos a probar con las replicas
+    if not (replica_nodes := metadata.get("replica_nodes")):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+
+    # Lanzamos peticiones en paralelo para cada nodo hasta que responda uno
+    tasks = [asyncio.create_task(try_fetch_from_node(node, file_id)) for node in replica_nodes]
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+    for task in done:
+        # Si ha contestado algun nodo con la replica
+        if (response := task.result()):
+            # Cancelamos el resto de tareas pendientes
+            for t in pending: t.cancel()
+
+            # Y actuamos como proxy, guardando una copia local
+            return StreamingResponse(
+                stream_and_store(response.aiter_bytes(), storage_path, file_id),
+                media_type="application/octet-stream",
+                headers=headers
+            )
+
+    # si llegamos aqui, mal
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="File not found"
+    )
+
+
 @router.post("/files/share", response_model=StatusFileResponse)
-async def share_file(
+async def api_share_file(
     req: ShareFileRequest = Body(...), # type: ignore[valid-type]
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
+    """
+    Comparte fichero con otro usuario y añade la información criptografica necesaria
+    para que este pueda descifrarlo.
+    """
     try:
         # Validamos que el fichero realmente exista
         _, metadata = get_metadata_by_name(user_id, req.filename)
         file_id = metadata["file_id"]
-        owner = metadata["user_id"]
+        owner = metadata["owner"]
 
     except FileNotFoundError:
         raise HTTPException(
@@ -394,7 +392,8 @@ async def share_file(
             detail="Invalid request"
         )
 
-    except Exception:
+    except Exception as e:
+        ERR(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
@@ -413,8 +412,7 @@ async def share_file(
     payload_dict["file_id"] = file_id
 
     # Publicamos evento 
-    block_id = send_file_shared_event(payload_dict)
-    if not block_id:
+    if not (block_id := send_file_shared_event(payload_dict)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"
@@ -423,8 +421,8 @@ async def share_file(
     return StatusFileResponse(status="shared")
 
 
-@router.delete("/files/{filename}")
-async def delete_file_entry(
+@router.delete("/files/{filename}", response_model=StatusFileResponse)
+async def api_delete_file(
     filename: constr(regex=RE_FILENAME) = Path(...), # type: ignore[valid-type]
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
 ):
@@ -448,7 +446,8 @@ async def delete_file_entry(
             detail="Invalid request"
         )
 
-    except Exception:
+    except Exception as e:
+        ERR(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
@@ -469,8 +468,7 @@ async def delete_file_entry(
     }
 
     # Publicamos evento 
-    block_id = send_file_deleted_event(payload_dict)
-    if not block_id:
+    if not (block_id := send_file_deleted_event(payload_dict)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"
@@ -479,8 +477,8 @@ async def delete_file_entry(
     return StatusFileResponse(status="deleted")
 
 
-@router.patch("/files/{filename}")
-async def rename_file_entry(
+@router.patch("/files/{filename}", response_model=StatusFileResponse)
+async def api_rename_file(
     filename: constr(regex=RE_FILENAME) = Path(...), # type: ignore[valid-type]
     req: RenameFileRequest = Body(...), # type: ignore[valid-type]
     user_id: constr(regex=RE_USER_ID) = Depends(require_auth) # type: ignore[valid-type]
@@ -505,7 +503,8 @@ async def rename_file_entry(
             detail="Invalid request"
         )
 
-    except Exception:
+    except Exception as e:
+        ERR(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
@@ -527,8 +526,7 @@ async def rename_file_entry(
     }
 
     # Publicamos evento 
-    block_id = send_file_renamed_event(payload_dict)
-    if not block_id:
+    if not (block_id := send_file_renamed_event(payload_dict)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"
@@ -538,24 +536,14 @@ async def rename_file_entry(
 
 
 @router.get("/files/{file_id}/block/{block}/fragment/{fragment}")
-async def get_fragment(
+async def api_get_fragment(
     file_id: constr(regex=RE_FILE_ID) = Path(...), # type: ignore[valid-type]
     block: conint(ge=0) = Path(...), # type: ignore[valid-type]
     fragment: conint(ge=0) = Path(...) # type: ignore[valid-type]
 ):
-    # Pendiente...
+    """
+    Extrae un fragmento erasure code del fichero identificado por file_id.
+    """
+    # TODO pendiente...
     pass
-
-    # fragment_path = get_fragment_path(file_id, block_id, fragment_id)
-    #if not fragment_path.exists():
-    #    raise HTTPException(status_code=404, detail="Fragment not found")
-    #return FileResponse(
-    #    fragment_path,
-    #    media_type="application/octet-stream",
-    #    headers={
-    #        "X-Block-ID": block,
-    #        "X-Fragment-ID": fragment,
-    #        "X-File-ID": file_id
-    #    }
-    #)
 

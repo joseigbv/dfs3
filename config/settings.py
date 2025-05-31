@@ -73,6 +73,9 @@ LOG_VERBOSITY = getenv("DFS_LOG_VERBOSITY", Verbosity.HIGH)
 # URL de acceso al nodo IOTA usado para las pruebas
 IOTA_NODE_URL = getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/v2/blocks")
 
+# URL de acceso al nodo "seed", usado para sincronizar estado de nodos nuevos
+SEED_NODE_URL = getenv("DFS3_SEED_NODE_URL", "https://iota.dfs3.net/api/v1/events")
+
 # Puerto en el que se ejecuta el servicio
 API_PORT = int(getenv("DFS3_API_PORT", 8008))
 

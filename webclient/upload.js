@@ -101,16 +101,19 @@ $(function () {
       // TODO: Pendiente integrar con API REST
       await uploadFile(metadata, fileDataEncrypted);
 
-      // ---
-      // Prueba de aniadir un nuevo usuario, (de momento nosotros mismos)
-      // ---
-      metadata = await authorizeUserForFile(
+/*
+      // Añadimos nuestro usuario
+      const authorizedUser = await authorizeUserForFile(
+        userId,         // Owner del fichero (nosotros)
         metadata, 	// Metadatos del fichero a autorizar
         privateKey, 	// Clave privada del propietario
         publicKey, 	// Clave publica del propietario
         userId, 	// Id del destinatario
         publicKey	// Clave publica del destinatario
       );
+
+      metadata['authorized_users'].push(authorizedUser);
+*/
 
       // Redirigimos a pagina principal
       $status.text("Subida completada. Redirigiendo...");

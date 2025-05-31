@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -35,6 +34,6 @@ from typing import Optional, Dict, Any
 
 
 # Inicializamos vacias
-config: Optional[Dict[str, Any]] = {}
+config: Dict[str, Any] = {}
 private_key: bytes = b""
 

@@ -1,5 +1,11 @@
-# api/models/files.py
-
+"""
+Module: api/models/files.py
+Description: Defines Pydantic models for file-related data structures used in the DFS3 API,
+including file metadata, upload and download schemas, sharing permissions, and response formats.
+Author: José Ignacio Bravo <nacho.bravo@gmail.com>
+License: MIT
+Created: 2025-05-10
+"""
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -110,7 +116,7 @@ class ShareFileRequest(StrictBaseModel):
     """
     Input model for sharing a file with authorized users.
     """
-    filename: constr(regex=RE_BASE64) # type: ignore[valid-type]
+    filename: constr(regex=RE_FILENAME) # type: ignore[valid-type]
     authorized_users: List[AuthorizedUserEntry]
 
 

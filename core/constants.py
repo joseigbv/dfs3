@@ -85,7 +85,8 @@ RE_USER_ID: str = r"^[a-f0-9]{64}$"
 RE_ALIAS: str = r"^[a-z0-9_-]{3,20}$"
 RE_FILE_ID: str = RE_USER_ID
 RE_NODE_ID: str = RE_USER_ID
-RE_FILENAME: str = r"^[\w\-. ]{1,100}$" # r"^(?!.*[\\/:*?\"<>|])[^./][^\\/:*?\"<>|\r\n]{1,254}$"
+#RE_FILENAME: str = r"^[\w\-. ]{1,100}$" # mas restrictiva 
+RE_FILENAME: str = r"^(?!.*[\\/:*?\"<>|])[^./][^\\/:*?\"<>|\r\n]{1,254}$" # TODO revisar seguridad
 RE_TAG: str = r"[\w\-\.]{1,20}"
 RE_BASE64: str = r"^[A-Za-z0-9+/]{4,}={0,2}$"
 RE_MIMETYPE: str = r"^[a-zA-Z0-9!#$&^_-]+/[a-zA-Z0-9!#$&^_.+-]+$"

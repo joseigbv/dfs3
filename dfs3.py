@@ -5,9 +5,7 @@ Description: Main entry point for the dfs3 distributed file system
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
-
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -39,7 +37,7 @@ from utils.logger import LOG, WRN, ERR, DBG
 from config.settings import UPDATE_STATUS_INTERVAL
 from core import context
 from core.db_init import create_db
-from core.nodes import init_or_load_node
+from core.nodes import init_or_load_node, sync_node_status
 from core.events import send_node_registered_event, send_node_status_event
 from mqtt.listener import start as start_mqtt_listener
 from mqtt.client import register as register_mqtt_client
@@ -96,6 +94,11 @@ async def main():
     if is_new:
         # workaround para que el nodo vea su propio mensaje 
         register_mqtt_client()
+
+        context.config['status'] = 'syncing'
+        LOG("Syncing status...")
+        sync_node_status()
+        context.config['status'] = 'synced'
 
         LOG("Node created successfully. Publishing registration event...")
         send_node_registered_event()

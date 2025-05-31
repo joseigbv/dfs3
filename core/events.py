@@ -30,15 +30,19 @@ Created: 2025-04-30
 #   2025-04-30 - José Ignacio Bravo - Initial creation
 
 import platform
+import sqlite3
 
-from config.settings import DATA_DIR, API_PORT
 from core import context
+from typing import List
+from contextlib import closing
 from utils.logger import LOG, WRN, ERR, DBG
 from utils.system import get_uptime_seconds, get_total_disk_space, get_local_ip
 from utils.time import iso_now
 from utils.crypto import sign_event
+from config.settings import DATA_DIR, API_PORT, DB_FILE
 from iota.client import publish_event as publish_event_to_iota
 from mqtt.client import publish_event as publish_event_to_mqtt
+from models.base import EventEntry
 from core.constants import (
     PROTOCOL, 
     EV_NODE_REGISTERED, 
@@ -85,6 +89,29 @@ def publish_event(event: BaseEvent) -> str | None:
     return block_id;
 
  
+def save_event(block_id: str, event: BaseEvent):
+    """
+    Saves a minimal reference of an event into the local SQLite database.
+    """
+    event_type = event.event_type
+    timestamp = int(event.timestamp.timestamp())
+    node_id = event.node_id
+
+    try:
+        with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                INSERT INTO events (block_id, event_type, timestamp, node_id)
+                VALUES (?, ?, ?, ?)
+            """, (block_id, event_type, timestamp, node_id))
+
+            conn.commit()
+
+        LOG(f"Event {event_type} saved in DB with block_id {block_id} from node {node_id}.")
+
+    except Exception as e:
+        ERR(f"Failed to save event {event_type} in DB: {e}")
+
+
 def build_base_event(event_type: str, payload: dict) -> BaseEvent | None:
     """
     Constructs an event with the given type and payload, adding metadata fields and signs it.
@@ -137,13 +164,11 @@ def send_node_registered_event() -> str | None:
         "version": 1
     }
 
-    base_event = build_base_event(EV_NODE_REGISTERED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_NODE_REGISTERED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = NodeRegisteredEvent(**base_event.dict())
-    if not event:
+    if not (event := NodeRegisteredEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -167,13 +192,11 @@ def send_node_status_event() -> str | None:
         "total_space": get_total_disk_space()
     }
 
-    base_event = build_base_event(EV_NODE_STATUS, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_NODE_STATUS, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = NodeStatusEvent(**base_event.dict())
-    if not event:
+    if not (event := NodeStatusEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -185,13 +208,11 @@ def send_user_registered_event(payload: dict) -> str | None:
     """
     Builds a user_created event from the given user registration data.
     """
-    base_event = build_base_event(EV_USER_REGISTERED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_USER_REGISTERED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = UserRegisteredEvent(**base_event.dict())
-    if not event:
+    if not (event := UserRegisteredEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -203,13 +224,11 @@ def send_user_joined_node_event(payload: dict) -> str | None:
     """
     Builds a user_joined_node event from the given login verification data.
     """
-    base_event = build_base_event(EV_USER_JOINED_NODE, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_USER_JOINED_NODE, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = UserJoinedNodeEvent(**base_event.dict())
-    if not event:
+    if not (event := UserJoinedNodeEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -221,13 +240,11 @@ def send_file_created_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_created' using the given UploadFileMetadata payload.
     """
-    base_event = build_base_event(EV_FILE_CREATED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_CREATED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileCreatedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileCreatedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -239,13 +256,11 @@ def send_file_shared_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_shared' using the given ShareFileRequest payload.
     """
-    base_event = build_base_event(EV_FILE_SHARED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_SHARED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileSharedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileSharedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -257,13 +272,11 @@ def send_file_accessed_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_accessed' using the given file request payload.
     """
-    base_event = build_base_event(EV_FILE_ACCESSED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_ACCESSED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileAccessedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileAccessedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -275,13 +288,11 @@ def send_file_deleted_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_deleted' using the given file request payload.
     """
-    base_event = build_base_event(EV_FILE_DELETED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_DELETED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileDeletedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileDeletedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -293,13 +304,11 @@ def send_file_renamed_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_renamed' using the given file request payload.
     """
-    base_event = build_base_event(EV_FILE_RENAMED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_RENAMED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileRenamedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileRenamedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
@@ -311,16 +320,59 @@ def send_file_replicated_event(payload: dict) -> str | None:
     """
     Constructs a BaseEvent of type 'file_replicated' using the given file request payload.
     """
-    base_event = build_base_event(EV_FILE_REPLICATED, payload)
-    if not base_event:
+    if not (base_event := build_base_event(EV_FILE_REPLICATED, payload)):
         ERR("Error creating base event.")
         return None
 
-    event = FileReplicatedEvent(**base_event.dict())
-    if not event:
+    if not (event := FileReplicatedEvent(**base_event.dict())):
         ERR("Error creating event.")
         return None
 
     # si todo va bien, publicamos evento 
     return publish_event(event)
+
+
+def list_events() -> List[EventEntry]:
+    """
+    Returns the list of users from database
+    """     
+    with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+        cursor.execute("""
+            SELECT timestamp, block_id, event_type, node_id 
+            FROM events
+            WHERE event_type <> "node_status"
+            UNION
+            SELECT timestamp, block_id, event_type, node_id 
+            FROM events e1 JOIN (
+                SELECT MAX(rowid) AS max_rowid 
+                FROM events 
+                WHERE event_type = 'node_status' 
+                GROUP BY node_id) e2 
+            WHERE e1.rowid = e2.max_rowid
+            ORDER BY timestamp
+        """)
+    
+        return [
+            EventEntry(timestamp=timestamp, block_id=block_id, event_type=event_type, node_id=node_id)
+            for timestamp, block_id, event_type, node_id in cursor.fetchall()
+        ]
+
+
+def get(block_id: str) -> EventEntry | None:
+    """
+    Retrieves a user by user_id from cache or database.
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                SELECT timestamp, block_id, event_type, node_id
+                FROM events
+                WHERE block_id = ?
+            """, (block_id,))
+
+            return (
+                EventEntry(timestamp=r['timestamp'], block_id=r['block_id'], event_type=r['event_type'], node_id=r['node_id'])
+                if (r := cursor.fetchone()) else None
+            )
 

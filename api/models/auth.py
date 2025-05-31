@@ -31,7 +31,7 @@ Created: 2025-05-01
 #   2025-05-08 - José Ignacio Bravo - Initial creation
 
 from pydantic import BaseModel, EmailStr, constr, validator
-from typing import Optional
+from typing import Optional, List
 from core.constants import RE_USER_ID, RE_ALIAS, RE_BASE64
 from core.validators import validate_base64
 from models.base import StrictBaseModel
@@ -45,6 +45,7 @@ class RegisterRequest(StrictBaseModel):
     alias: constr(regex=RE_ALIAS) # type: ignore[valid-type]
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    tags: Optional[List[str]] = []
     public_key: constr(min_length=44, max_length=512, regex=RE_BASE64) # type: ignore[valid-type]
 
     @validator("public_key")

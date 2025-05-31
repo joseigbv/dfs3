@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -50,6 +49,7 @@ def generate_challenge(user_id: str) -> str:
     now_bytes = epoch_now().to_bytes(8, byteorder="big")
     challenge = b64encode(urandom(24) + now_bytes).decode()
     _challenge_cache[user_id] = challenge
+
     return challenge
 
 
@@ -66,6 +66,7 @@ def create_session_token(user_id: str) -> str:
     """
     token = b64encode(urandom(24)).decode()
     _session_tokens[token] = user_id
+
     return token
 
 
@@ -89,8 +90,7 @@ def require_auth(authorization: str = Header(...)) -> str:
 
     # Extraemos token de sesion y sacamos user_id
     token = authorization.removeprefix("Bearer ").strip()
-    user_id = _session_tokens.get(token)
-    if not user_id:
+    if not (user_id := _session_tokens.get(token)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"

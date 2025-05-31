@@ -40,6 +40,7 @@ from typing import List, Tuple
 from cachetools import LRUCache, cached
 from utils.logger import LOG, ERR
 from config.settings import STORAGE_DIR, META_DIR, USERS_DIR
+from core import context
 from core.constants import MAX_FILE_SIZE, EC_MIN_SIZE
 from core.nodes import get as get_node, should_clone_from
 from core.events import send_file_replicated_event
@@ -84,8 +85,7 @@ def get_file_url_for_node(node_id: str, file_id: str) -> str | None:
     Construimos la peticion de file_id a partir del id del nodo propietario
     Debe ser accesible para el resto de nodos a traves de su ip:puerto
     """
-    node = get_node(node_id)   
-    if not node:
+    if not (node := get_node(node_id)):
         return None
 
     # TODO: Mejorar URL de peticion, para pruebas vale
@@ -99,8 +99,7 @@ def clone(node_id: str, file_id: str) -> bool:
     Clona un fichero cifrado desde otro nodo remoto y lo guarda localmente.
     """
     try:
-        url = get_file_url_for_node(node_id, file_id)
-        if not url:
+        if not (url := get_file_url_for_node(node_id, file_id)):
             ERR(f"URL info not found for {node_id}")
             return False
 
@@ -126,17 +125,18 @@ def clone(node_id: str, file_id: str) -> bool:
             f.write(response.content)
 
         # Ahora generamos evento para informar al resto de nodos
-        block_id = send_file_replicated_event({"file_id": file_id})
-        if not block_id:
+        if not (block_id := send_file_replicated_event({"file_id": file_id})):
             ERR(f"Error sending file_replicated event for {file_id}")
             return False
 
         LOG(f"File {file_id} successfully cloned from {node_id}")
-        return True
 
     except Exception as e:
         ERR(f"Error cloning {file_id} from {node_id}: {e}")
         return False
+
+    # si llegamos, bien
+    return True
 
 
 def replicate(event: FileReplicatedEvent):
@@ -166,6 +166,7 @@ def create(event: FileCreatedEvent):
     try:
         node_id = event.node_id
         payload = event.payload 
+        timestamp = event.timestamp
 
         user_id = payload.user_id
         file_id = payload.file_id
@@ -177,6 +178,9 @@ def create(event: FileCreatedEvent):
         metadata["owner"] = user_id
         del metadata["user_id"]
         del metadata["filename"]
+        metadata["creation_date"] = timestamp.isoformat()
+        metadata["replica_nodes"] = [node_id]
+        metadata["version"] = 1
 
         # TODO: Pendiente crear un modelo para metadatos de fichero
         # ...
@@ -188,10 +192,17 @@ def create(event: FileCreatedEvent):
         entry_path = get_available_filename_path(user_id, filename)
         entry_path.hardlink_to(meta_path)
 
+        # invalidamos cache, deberia estar a none
+        invalidate_metadata_cache(file_id)
+
         LOG(f"Registered file {filename} ({file_id}) for user {user_id}")
 
         # Ahora clonamos si el fichero es pequeño y nuestro nodo es candidato
-        if size < EC_MIN_SIZE and should_clone_from(node_id, size):
+        if (
+            size < EC_MIN_SIZE 
+            and should_clone_from(node_id, size) 
+            and context.config['status'] == 'synced'
+        ):
             clone(node_id, file_id)
 
     except Exception as e:
@@ -324,7 +335,7 @@ def get_meta_path(file_id: str) -> Path:
     return meta_dir / f"{file_id}.json"
 
 
-@cached(_metadata_cache)
+@cached(_metadata_cache, key=lambda file_id: file_id)
 def get_metadata_by_id(file_id: str) -> Tuple[Path, dict]:
     """
     Devuelve los metadatos de un fichero a partir de su file_id.

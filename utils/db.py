@@ -5,7 +5,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -35,9 +34,6 @@ def row_to_dict(cursor, row: tuple) -> dict:
     """
     Converts a database row and its cursor into a dictionary mapping column names to values.
     """
-    if not row:
-        return {}
-
     col_names = [desc[0] for desc in cursor.description]
-    return dict(zip(col_names, row))
+    return dict(zip(col_names, row)) if row else {}
 

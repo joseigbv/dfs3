@@ -29,15 +29,22 @@ Created: 2025-05-22
 # Change history:
 #   2025-05-22 - José Ignacio Bravo - Initial creation
 
-from pydantic import BaseModel
-
-
-class FileEntry(BaseModel):
-    name: str
-    file_id: str
-    size: int
-    mimetype: str
-    creation_date: str
+from datetime import datetime
+from typing import Literal
+from pydantic import BaseModel, Field, constr, conint, validator
+from core.validators import validate_base64
+from core.constants import (
+    RE_NODE_ID,
+    RE_FILE_ID,
+    RE_USER_ID,
+    RE_BLOCK_ID,
+    RE_FILENAME,
+    RE_BASE64,
+    RE_MIMETYPE,
+    RE_ALIAS,
+    VALID_EVENT_TYPES,
+    MAX_FILE_SIZE
+)
 
 
 class StrictBaseModel(BaseModel):
@@ -46,5 +53,43 @@ class StrictBaseModel(BaseModel):
     """
     class Config:
         extra = "forbid"
+
+
+class FileEntry(StrictBaseModel):
+    file_id: constr(regex=RE_FILE_ID) = Field(...) # type: ignore[valid-type]
+    name: constr(regex=RE_FILENAME) = Field(...) # type: ignore[valid-type]
+    size: conint(ge=0, le=MAX_FILE_SIZE) = Field(...) # type: ignore[valid-type]
+    mimetype: constr(regex=RE_MIMETYPE) = Field(...) # type: ignore[valid-type]
+    creation_date: str = Field(...) # TODO pendiente de estudiar
+
+
+class UserEntry(StrictBaseModel):
+    user_id: constr(regex=RE_USER_ID) = Field(...) # type: ignore[valid-type]
+    alias: constr(regex=RE_ALIAS) = Field(...) # type: ignore[valid-type]
+    public_key: constr(min_length=44, max_length=512, regex=RE_BASE64) = Field(...) # type: ignore[valid-type]
+
+    @validator("public_key")
+    def validate_public_key(cls, v):
+        return validate_base64(v, "public_key")
+
+
+class NodeEntry(StrictBaseModel):
+    node_id: constr(regex=RE_NODE_ID) = Field(...) # type: ignore[valid-type]
+    alias: constr(regex=RE_ALIAS) = Field(...) # type: ignore[valid-type]
+    public_key: constr(min_length=44, max_length=512, regex=RE_BASE64) = Field(...) # type: ignore[valid-type]
+
+    @validator("public_key")
+    def validate_public_key(cls, v):
+        return validate_base64(v, "public_key")
+
+
+class EventEntry(StrictBaseModel):
+    """
+    Minimal event structure sent over MQTT to notify about a new IOTA block.
+    """
+    timestamp: datetime = Field(...) # type: ignore[valid-type]
+    block_id: constr(regex=RE_BLOCK_ID) = Field(...) # type: ignore[valid-type]
+    event_type: Literal[*VALID_EVENT_TYPES] # type: ignore[valid-type]
+    node_id: constr(regex=RE_NODE_ID) = Field(...) # type: ignore[valid-type]
 
 

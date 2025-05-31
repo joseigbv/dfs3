@@ -31,19 +31,38 @@ Created: 2025-05-01
 #   2025-05-08 - José Ignacio Bravo - Initial creation
 
 from fastapi import APIRouter, HTTPException, status
-from api.models.auth import ChallengeRequest, ChallengeResponse, RegisterRequest, RegisterResponse, VerifyRequest, VerifyResponse
-from core.auth import generate_challenge, get_challenge, create_session_token, verify_session_token
-from core.users import register as register_user, exists as exists_user, get_public_key as get_public_key_user
-from core.events import send_user_registered_event, send_user_joined_node_event
 from utils.crypto import verify_signature
+from api.models.auth import (
+    ChallengeRequest, 
+    ChallengeResponse, 
+    RegisterRequest, 
+    RegisterResponse, 
+    VerifyRequest, 
+    VerifyResponse
+)
+from core.auth import (
+    generate_challenge, 
+    get_challenge, 
+    create_session_token, 
+    verify_session_token
+)
+from core.users import (
+    register as register_user, 
+    exists as exists_user, 
+    get_public_key as get_public_key_user
+)
+from core.events import (
+    send_user_registered_event, 
+    send_user_joined_node_event
+)
 
 
 # instancia de enrutador modular
 router = APIRouter()
 
 
-@router.post("/challenge", response_model=ChallengeResponse)
-async def request_challenge(req: ChallengeRequest):
+@router.post("/auth/challenge", response_model=ChallengeResponse)
+async def api_request_challenge(req: ChallengeRequest):
     """
     Handles a challenge request by generating and returning a unique challenge string.
     """
@@ -59,8 +78,8 @@ async def request_challenge(req: ChallengeRequest):
     return ChallengeResponse(challenge=challenge)
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register(req: RegisterRequest):
+@router.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+async def api_register(req: RegisterRequest):
     """
     Handles user registration and emits a user_created event.
     """
@@ -75,8 +94,7 @@ async def register(req: RegisterRequest):
     payload_dict["version"] = 1
 
     # Construimos y enviamos el evento 
-    block_id = send_user_registered_event(payload_dict)
-    if not block_id:
+    if not (block_id := send_user_registered_event(payload_dict)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"
@@ -85,22 +103,20 @@ async def register(req: RegisterRequest):
     return RegisterResponse(user_id=req.user_id)
 
 
-@router.post("/verify", response_model=VerifyResponse)
-async def verify(req: VerifyRequest):
+@router.post("/auth/verify", response_model=VerifyResponse)
+async def api_verify(req: VerifyRequest):
     """
     Verifies the signed challenge and returns a session token if valid.
     """
     # Deberia haber ya un challenge asociado al user_id
-    challenge = get_challenge(req.user_id)
-    if not challenge:
+    if not (challenge := get_challenge(req.user_id)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No challenge found or expired"
         )
 
     # Si el usuario esta registrado, tendremos su public_key
-    public_key = get_public_key_user(req.user_id)
-    if not public_key:
+    if not (public_key := get_public_key_user(req.user_id)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
@@ -122,8 +138,7 @@ async def verify(req: VerifyRequest):
     payload_dict['public_key'] = public_key
 
     # Construimos y enviamos el evento 
-    block_id = send_user_joined_node_event(payload_dict)
-    if not block_id:
+    if not (block_id := send_user_joined_node_event(payload_dict)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"

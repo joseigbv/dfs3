@@ -5,7 +5,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -37,18 +36,21 @@ import json
 import getpass
 import sqlite3
 
+from contextlib import closing
 from base64 import b64encode
 from nacl.signing import SigningKey
 from nacl.encoding import RawEncoder
 from nacl.secret import SecretBox
 from nacl.utils import random as nacl_random
 from nacl.pwhash import argon2id
-from typing import Optional
+from typing import Optional, List
+from core import context
 from core.constants import SOFTWARE_VERSION
 from utils.crypto import decrypt_private_key
 from utils.logger import LOG, WRN, ERR, DBG, ABR
 from utils.db import row_to_dict
-from config.settings import CONFIG_PATH, DB_FILE, API_PORT
+from config.settings import CONFIG_PATH, DB_FILE, API_PORT, SEED_NODE_URL
+from models.base import NodeEntry
 from models.events import NodeRegisteredEvent, NodeStatusEvent
 from cachetools import LRUCache, cached
 
@@ -59,6 +61,7 @@ _node_cache: LRUCache[str, Optional[dict]] = LRUCache(maxsize=10)
 
 def invalidate_node_cache(node_id: str) -> None:
     _node_cache.pop(node_id, None)
+    _public_key_cache.pop(node_id, None)
 
 
 def derive_key_from_passphrase(passphrase: str) -> tuple[bytes, bytes]:
@@ -182,36 +185,37 @@ def save(event: NodeRegisteredEvent):
     invalidate_node_cache(node_id)
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO nodes (
+        with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                INSERT INTO nodes (
+                    node_id, alias, hostname, public_key,
+                    platform, software_version, uptime, total_space,
+                    ip, port, tags, creation_date, version, last_seen
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(node_id) DO UPDATE SET
+                    alias=excluded.alias,
+                    hostname=excluded.hostname,
+                    public_key=excluded.public_key,
+                    platform=excluded.platform,
+                    software_version=excluded.software_version,
+                    uptime=excluded.uptime,
+                    total_space=excluded.total_space,
+                    ip=excluded.ip,
+                    port=excluded.port,
+                    tags=excluded.tags,
+                    creation_date=excluded.creation_date,
+                    version=excluded.version,
+                    last_seen=excluded.last_seen
+            """, (
                 node_id, alias, hostname, public_key,
                 platform, software_version, uptime, total_space,
                 ip, port, tags, creation_date, version, last_seen
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(node_id) DO UPDATE SET
-                alias=excluded.alias,
-                hostname=excluded.hostname,
-                public_key=excluded.public_key,
-                platform=excluded.platform,
-                software_version=excluded.software_version,
-                uptime=excluded.uptime,
-                total_space=excluded.total_space,
-                ip=excluded.ip,
-                port=excluded.port,
-                tags=excluded.tags,
-                creation_date=excluded.creation_date,
-                version=excluded.version,
-                last_seen=excluded.last_seen
-        """, (
-            node_id, alias, hostname, public_key,
-            platform, software_version, uptime, total_space,
-            ip, port, tags, creation_date, version, last_seen
-        ))
+            ))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+
+        # invalidamos cache (deberia estar en None)
+        invalidate_node_cache(node_id)
 
         LOG(f"Node '{alias}' ({node_id}) saved to database")
 
@@ -226,7 +230,7 @@ def update(event: NodeStatusEvent):
     node_id = event.node_id
     payload = event.payload
 
-    ip = payload.ip
+    ip = str(payload.ip)
     port = payload.port
     uptime = payload.uptime
     total_space = payload.total_space
@@ -237,91 +241,120 @@ def update(event: NodeStatusEvent):
     invalidate_node_cache(node_id)
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE nodes SET
-                ip = ?,
-                port = ?,
-                uptime = ?,
-                total_space = ?,
-                last_seen = ?
-            WHERE node_id = ?
-        """, (
-            ip, port, uptime, total_space, last_seen, node_id
-        ))
+        with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                UPDATE nodes SET
+                    ip = ?,
+                    port = ?,
+                    uptime = ?,
+                    total_space = ?,
+                    last_seen = ?
+                WHERE node_id = ?
+            """, (
+                ip, port, uptime, total_space, last_seen, node_id
+            ))
 
-        if cursor.rowcount == 0:
-            WRN(f"Node {node_id} not found in DB for update.")
+            if cursor.rowcount == 0:
+                WRN(f"Node {node_id} not found in DB for update.")
+            else:
+                LOG(f"Node {node_id} updated with node_status info.")
 
-        else:
-            LOG(f"Node {node_id} updated with node_status info.")
-
-        conn.commit()
-        conn.close()
+            conn.commit()
 
     except Exception as e:
         ERR(f"Failed to update node from status event: {e}")
 
 
-@cached(_public_key_cache)
-def get_public_key(node_id: str) -> str | None:
-    """
-    Retrieves the base64-encoded public key of a node from the database by node_id.
-    """
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT public_key FROM nodes WHERE node_id = ?", (node_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        return row[0]
-
-    except Exception as e:
-        ERR(f"Failed to retrieve public key for node {node_id}: {e}")
-        return None
-
-
-@cached(_node_cache)
+@cached(_node_cache, key=lambda node_id: node_id)
 def get(node_id: str) -> dict | None:
     """
     Retrieves a node from the database by node_id.
     """
     # Consultamos en db si no esta en cache
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,))
-    row = cursor.fetchone()
-    if row:
-        node_data = row_to_dict(cursor, row)
-        conn.close()
-        return node_data
+    with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+        cursor.execute("""
+            SELECT * 
+            FROM nodes 
+            WHERE node_id = ?
+        """, (node_id,))
 
-    # Si llegamos aqui, mal
-    conn.close()
+        # TODO convertir en una clase
+        if (row := cursor.fetchone()):
+            return row_to_dict(cursor, row)
+
+    # Si llegamos, mal
     return None
 
 
-def should_clone_from(source_node_id, size):
+@cached(_public_key_cache, key=lambda node_id: node_id)
+def get_public_key(node_id: str) -> str | None:
+    """
+    Retrieves the base64-encoded public key of a node from the database by node_id.
+    """
+    return node["public_key"] if (node := get(node_id)) else None
+
+
+def should_clone_from(source_node_id: str, size: int) -> bool:
     """
     Buscamos los tres nodos que tengan espacio suficiente, lleven activos mas de 
     10 minutos y esten levantados desde hace mas de 1 día
     """ 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT node_id
-        FROM nodes
-        WHERE uptime >= 86400
-          AND last_seen >= datetime('now', '-10 minutes')
-          AND available_space > ?
-          AND node_id != ?
-        ORDER BY available_space DESC, node_id ASC
-        LIMIT 3;
-   """, (size, node_id))
-    candidates = [row[0] for row in cursor.fetchall()]
-    conn.close()
+    # TODO: Pendiente mejorar esto
+    if not context.config:
+        ERR("Config not found in context.")
+        return False
 
+    with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+        cursor.execute("""
+            SELECT node_id
+            FROM nodes
+            WHERE uptime >= 86400
+              AND last_seen >= datetime('now', '-10 minutes')
+              AND total_space > ?
+              AND node_id != ?
+            ORDER BY total_space DESC, node_id ASC
+            LIMIT 3;
+        """, (size, source_node_id))
+
+        # Generamos la lista de candidatos, TODO parametrizar
+        candidates = [r[0] for r in cursor.fetchall()]
+
+    # somos candidatos ?
     return context.config["node_id"] in candidates
+
+
+def list_nodes() -> List[NodeEntry]:
+    """
+    Returns the list of nodes from database
+    """
+    with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor: 
+        cursor.execute("""
+            SELECT node_id, alias, public_key
+            FROM nodes;
+        """)
+
+        return [
+            NodeEntry(node_id=node_id, alias=alias, public_key=public_key) 
+            for node_id, alias, public_key in cursor.fetchall()
+        ]
+
+
+def sync_node_status():
+    # para evitar dependencias circulares
+    from mqtt.listener import fetch_and_process_event
+    try:
+        # Petición para obtener la lista de eventos
+        response = requests.get(api_url)
+        response.raise_for_status()
+
+        # Generamos la lista de eventos
+        events = [EventEntry(**e) for e in response.json()]
+        DBG(f"Retrieved {len(events)} events")
+
+        for event in events:
+            DBG(f"Processing event {event.block_id} {event.event_type}")
+            fetch_and_process_event(event.block_id)
+
+    except Exception as e:
+        ERR(f"Error syncing events: {e}")
 

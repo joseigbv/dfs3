@@ -36,10 +36,10 @@ from base64 import b64decode
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from nacl.encoding import RawEncoder
-from config.settings import DB_FILE
 from utils.logger import LOG, WRN, ERR, DBG
 from core import context
 from core.constants import VALID_EVENT_TYPES, SHA256_HEX_PATTERN, EV_NODE_REGISTERED
+from core.events import save_event
 from core.nodes import (
     save as save_node, 
     update as update_node, 
@@ -71,31 +71,6 @@ from models.events import (
 )
 
 
-def save_event(block_id: str, event: BaseEvent):
-    """
-    Saves a minimal reference of an event into the local SQLite database.
-    """
-    event_type = event.event_type
-    timestamp = int(event.timestamp.timestamp())
-    node_id = event.node_id
-
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO events (block_id, event_type, timestamp, node_id)
-            VALUES (?, ?, ?, ?)
-        """, (block_id, event_type, timestamp, node_id))
-
-        conn.commit()
-        conn.close()
-    
-        LOG(f"Event {event_type} saved in DB with block_id {block_id} from node {node_id}.")
-        
-    except Exception as e:
-        ERR(f"Failed to save event {event_type} in DB: {e}")
-
-
 def verify_signature(event: BaseEvent) -> bool:
     """
     Verifies the digital signature of a signed dfs3 event.
@@ -106,8 +81,7 @@ def verify_signature(event: BaseEvent) -> bool:
 
     else:
         # Deberiamos tener el node_id en db
-        public_key_b64 = get_public_key_node(event.node_id)
-        if not public_key_b64:
+        if not (public_key_b64 := get_public_key_node(event.node_id)):
             ERR(f"Public key not found for node {event.node_id}")
             return False
 
@@ -243,8 +217,7 @@ def process_event(event: BaseEvent, block_id: str):
         return
 
     # Ejecutamos el manejador para ese tipo de evento
-    handler = EVENT_HANDLERS.get(event.event_type)
-    if handler:
+    if (handler := EVENT_HANDLERS.get(event.event_type)):
         handler(event, block_id)
 
     else:

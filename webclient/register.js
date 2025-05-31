@@ -74,6 +74,7 @@ $(function () {
         alias,
         name: fullname,
         email,
+        tags: [],
         public_key: bufferToBase64(publicKey)
       };
 

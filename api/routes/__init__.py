@@ -5,7 +5,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-04
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -32,14 +31,17 @@ Created: 2025-05-04
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from api.routes import auth, files
+from api.routes import auth, files, users, nodes, events
 from core.constants import SOFTWARE_VERSION
 
 
 # instancia de enrutador modular
 router = APIRouter()
-router.include_router(auth.router, prefix="/auth")
+router.include_router(auth.router)
+router.include_router(users.router)
 router.include_router(files.router)
+router.include_router(nodes.router)
+router.include_router(events.router)
 
 
 @router.get("/status")

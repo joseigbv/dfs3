@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -64,4 +63,3 @@ def iso_to_epoch(iso_str: str) -> int:
 
     except Exception:
         return 0
-

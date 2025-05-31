@@ -1,6 +1,7 @@
 import { DFS3_USERS, base64ToBuffer } from './common.js';
 import { decryptFile } from './crypto.js';
-
+import { authorizeUserForFile } from './crypto.js';
+ 
 
 // ---
 // Variables globales
@@ -10,7 +11,7 @@ const privateKey = base64ToBuffer(sessionStorage.getItem('private_key') || '');
 const userId = sessionStorage.getItem('active_user_id') || '';
 const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
 const currentUser = users[userId] ?? {};
-const publicKey = base64ToBuffer(currentUser.publicKeyB64 || '');
+const publicKey = base64ToBuffer(currentUser.public_key || '');
 
 
 // ---
@@ -57,6 +58,9 @@ function downloadFile(data, fileName, mimeType = 'application/octet-stream') {
 // Carga por API listado de ficheros para userId y muestra
 // ---
 async function loadFiles() {
+
+  $('#file-list').empty();
+
   const res = await fetch('/api/v1/files', { 
     headers: { 'Authorization': 'Bearer ' + accessToken },
     method: 'GET'
@@ -92,23 +96,17 @@ async function loadFiles() {
           <td>${formatSize(file.size)}</td>
           <td>${formatDate(file.creation_date)}</td>
           <td>
-            <!--
             <button class="btn btn-sm btn-outline-primary download-btn" data-id="${file.file_id}" data-filename="${file.name}">
               <i class="bi bi-download me-1"></i>
               Descargar
             </button>
-            -->
-            <button class="btn btn-sm btn-outline-primary share-btn" data-id="${file.file_id}" data-filename="${file.name}">
+            <button class="btn btn-sm btn-outline-secondary share-btn" data-id="${file.file_id}" data-filename="${file.name}">
               <i class="bi bi-share me-1"></i>
               Compartir
             </button>
             <button class="btn btn-sm btn-outline-secondary rename-btn" data-id="${file.file_id}" data-filename="${file.name}">
               <i class="bi bi-pencil me-1"></i>
               Renombrar
-            </button>
-            <button class="btn btn-sm btn-outline-secondary copy-btn" data-id="${file.file_id}" data-filename="${file.name}">
-              <i class="bi bi-clipboard me-1"></i>
-              Copiar
             </button>
             <button class="btn btn-sm btn-outline-secondary delete-btn" data-id="${file.file_id}" data-filename="${file.name}">
               <i class="bi bi-trash me-1"></i>
@@ -120,7 +118,126 @@ async function loadFiles() {
       `);
     });
     $('#empty-msg').hide();
+    $('#file-list').show();
   }
+  else {
+    $('#empty-msg').text('No hay archivos aún.').show();
+  }
+}
+
+
+// ---
+// Ultima fase de compartir
+// ---
+async function handleShareConfirmation(filename, metadata) {
+  const selectedOption = $('#user-select option:selected');
+  const destUserId = selectedOption.val();
+  const destPublicKey = base64ToBuffer(selectedOption.data('pubkey'));
+
+  if (!destUserId || !destPublicKey) {
+    $('#share-error').removeClass('d-none').text('Selecciona un usuario válido.');
+    return;
+  }
+
+  try {
+    // Añadimos nuevo usuario a la lista de autorizados
+    const authorizedUser = await authorizeUserForFile(
+      userId,         // Owner del fichero (nosotros)
+      metadata,       // Metadatos del fichero a autorizar
+      privateKey,     // Clave privada del propietario
+      publicKey,      // Clave publica del propietario
+      destUserId,     // Id del destinatario
+      destPublicKey   // Clave publica del destinatario
+    );
+
+    const res = await fetch(`/api/v1/files/share`, {
+      headers: { 
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST',
+      body: JSON.stringify({
+        filename,
+        authorized_users: [ authorizedUser ]
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.text();
+      throw new Error(e);
+    }
+ 
+    // Ocultamos cuadro de dialogo
+    bootstrap.Modal.getInstance(document.getElementById('shareModal')).hide();
+
+    // Refrescamos tabla de ficheros
+    setTimeout(() => loadFiles(), 2000);
+
+  } catch (e) {
+    //$('#share-error').removeClass('d-none').text('Error: ' + err.message);
+    alert("Error al compartir fichero");
+    console.log(e);
+  }
+}
+
+
+// ---
+// Abre dialogo modal para compartir
+// ---
+async function openShareModal(filename, metadata) {
+  try {
+    // Extraemos lista de usuarios
+    const res = await fetch('/api/v1/users', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+
+    const users = await res.json();
+
+    // Cargamos usuarios en cuadro de dialogo
+    const select = $('#user-select');
+    select.empty().append('<option selected disabled>Elige un alias...</option>');
+    users.forEach(user => {
+      select.append(`<option value="${user.user_id}" data-pubkey="${user.public_key}">${user.alias} (${user.public_key.slice(0, 18)}...)</option>`);
+    });
+
+    $('#share-error').addClass('d-none').text('');
+
+    // Asociamos un solo handler temporal
+    $('#confirm-share-btn').off('click').on('click', async function () {
+      await handleShareConfirmation(filename, metadata);
+    });
+
+    // Mostramos cuadro de dialogo modal
+    const modal = new bootstrap.Modal(document.getElementById('shareModal'));
+    modal.show();
+
+  } catch (e) {
+    alert("Error al cargar usuarios");
+    console.log(e);
+  }
+}
+
+
+// ---
+// Devuelve icono segun mimetype
+// ---
+function getIconForMimeType(mimetype) {
+  // control de errores
+  if (!mimetype) return 'bi-file-earmark';
+
+  // TODO ir rellenando con opciones...
+  if (mimetype.startsWith('image/')) return 'bi-file-earmark-image';
+  if (mimetype === 'application/pdf') return 'bi-file-earmark-pdf';
+  if (mimetype.startsWith('video/')) return 'bi-file-earmark-play';
+  if (mimetype.startsWith('audio/')) return 'bi-file-earmark-music';
+  if (mimetype === 'application/zip' || mimetype === 'application/x-tar') return 'bi-file-earmark-zip';
+  if (mimetype === 'text/plain') return 'bi-file-earmark-text';
+  if (mimetype.includes('word')) return 'bi-file-earmark-word';
+  if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return 'bi-file-earmark-excel';
+  if (mimetype.includes('presentation')) return 'bi-file-earmark-slides';
+
+  // icono genérico por defecto
+  return 'bi-file-earmark'; 
 }
 
 
@@ -142,6 +259,14 @@ $(function () {
   // Mostramos usuario actual
   $('#user-alias').text(currentUser.name || currentUser.alias);
 
+  // Mostramos mensaje de update
+  $('#file-list').hide();
+  $('#empty-msg')
+    .text('Actualizando archivos...')
+    .removeClass('text-danger')
+    .addClass('text-mute')
+    .show();
+
   // Obtenemos archivos desde la API y mostramos
   loadFiles(); 
 
@@ -159,35 +284,18 @@ $(function () {
 });
 
 
-function getIconForMimeType(mimetype) {
-  if (!mimetype) return 'bi-file-earmark';
-
-  if (mimetype.startsWith('image/')) return 'bi-file-earmark-image';
-  if (mimetype === 'application/pdf') return 'bi-file-earmark-pdf';
-  if (mimetype.startsWith('video/')) return 'bi-file-earmark-play';
-  if (mimetype.startsWith('audio/')) return 'bi-file-earmark-music';
-  if (mimetype === 'application/zip' || mimetype === 'application/x-tar') return 'bi-file-earmark-zip';
-  if (mimetype === 'text/plain') return 'bi-file-earmark-text';
-  if (mimetype.includes('word')) return 'bi-file-earmark-word';
-  if (mimetype.includes('excel') || mimetype.includes('spreadsheet')) return 'bi-file-earmark-excel';
-  if (mimetype.includes('presentation')) return 'bi-file-earmark-slides';
-
-  return 'bi-file-earmark'; // icono genérico por defecto
-}
-
-
 // ---
 // Click en botones 'descargar'
 // ---
-$(document).on('click', '.download-lnk', async function (e) {
-  // evita navegación
+$(document).on('click', '.download-lnk, .download-btn', async function (e) {
+  // evita navegación cuando se usa el link
   e.preventDefault(); 
 
   const fileId = $(this).data('id');
   const fileName = $(this).data('filename');
 
   try {
-    // Primero buscamos metadatos
+    // Primero buscamos metadatos de fichero
     const resMeta = await fetch(`/api/v1/files/${fileId}/meta`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
       method: 'GET'
@@ -207,25 +315,39 @@ $(document).on('click', '.download-lnk', async function (e) {
     const metadata = await resMeta.json();
 
     // Ahora descargamos datos
-    const response = await fetch(`/api/v1/files/${fileId}`, {
+    const resData = await fetch(`/api/v1/files/${fileId}/data`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
       method: 'GET'
     });
 
-    if (response.status === 401) {
-      sessionStorage.clear();
-      window.location.href = 'login.html';
-      return;
-    } 
-
-    if (!response.ok) {
-      const e = await response.text();
+    if (!resData.ok) {
+      const e = await resData.text();
       throw new Error(e);
     }
 
-    const blob = await response.blob();
+    const blob = await resData.blob();
     const fileDataEncrypted = new Uint8Array(await blob.arrayBuffer()); 
-    const publicKey = base64ToBuffer(currentUser.public_key);
+
+    // Generalmente esta cifrado por y para nosotros
+    let ownerPublicKey = publicKey;
+
+    // Si no es el caso, obtenemos la clave publica del propietario
+    if (metadata.owner != userId) {
+      const resOwner = await fetch(`/api/v1/users/${metadata.owner}`, {
+        headers: { 'Authorization': 'Bearer ' + accessToken },
+        method: 'GET'
+      });
+
+      // TODO pendiente verificar valor devuelto
+      if (!resOwner.ok) {
+        const e = await resOwner.text();
+        throw new Error(e);
+      }
+
+      // Extraemos la clave publica del owner de fichero
+      const owner = await resOwner.json();
+      ownerPublicKey = base64ToBuffer(owner.public_key);
+    }
 
     // Desciframos para el propietario
     const fileData = await decryptFile(
@@ -233,7 +355,8 @@ $(document).on('click', '.download-lnk', async function (e) {
       fileDataEncrypted,  
       userId, 
       privateKey, 
-      publicKey
+      publicKey,
+      ownerPublicKey
     ); 
 
     // Descargamos fichero descifrado con sus metadatos correspondientes
@@ -244,34 +367,136 @@ $(document).on('click', '.download-lnk', async function (e) {
     alert('Error al descargar');
     console.log(e);
   }
-
 });
 
 
 // Botón compartir archivo
 $(document).on('click', '.share-btn', async function () {
+  // Mostramos mensaje de update
+  /*
+  $('#file-list').hide();
+  $('#empty-msg')
+    .text('Actualizando archivos...')
+    .removeClass('text-danger')
+    .addClass('text-mute')
+    .show();
+  */
+
+  // Qué deseamos compartir?
+  const fileId = $(this).data('id');
   const fileName = $(this).data('filename');
-  alert(`No implementado: ${fileName}`);
+
+  try { 
+    // Primero buscamos metadatos
+    const resMeta = await fetch(`/api/v1/files/${fileId}/meta`, {
+      headers: { 'Authorization': 'Bearer ' + accessToken },
+      method: 'GET'
+    });
+
+    if (resMeta.status === 401) {
+      sessionStorage.clear();
+      window.location.href = 'login.html';
+      return;
+    } 
+
+    if (!resMeta.ok) {
+      const e = await resMeta.text();
+      throw new Error(e);
+    }
+
+    const metadata = await resMeta.json();
+
+    // Solicitamos con que usuario queremos compartir
+    openShareModal(fileName, metadata);
+
+  } catch (e) {
+    alert('Error al borrar');
+    console.log(e);
+  }
 });
 
 
 // Botón renombrar archivo
 $(document).on('click', '.rename-btn', async function () {
-  const fileName = $(this).data('filename');
-  alert(`No implementado: ${fileName}`);
-});
+  // Mostramos mensaje de update
+  $('#file-list').hide();
+  $('#empty-msg')
+    .text('Actualizando archivos...')
+    .removeClass('text-danger')
+    .addClass('text-mute')
+    .show();
 
-
-// Botón copiar archivo
-$(document).on('click', '.copy-btn', async function () {
+  // Qué deseamos renombrar?
   const fileName = $(this).data('filename');
-  alert(`No implementado: ${fileName}`);
+  const newName = prompt('Nuevo nombre:', fileName);
+
+  try {
+    const res = await fetch(`/api/v1/files/${fileName}`, {
+      headers: { 
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      method: 'PATCH',
+      body: JSON.stringify({ new_name: newName })
+    });
+
+    if (res.status === 401) {
+      sessionStorage.clear();
+      window.location.href = 'login.html';
+      return;
+    } 
+
+    if (!res.ok) {
+      const e = await res.text();
+      throw new Error(e);
+    }
+
+    // Refrescamos tabla de ficheros
+    setTimeout(() => loadFiles(), 2000);
+
+  } catch (e) {
+    alert('Error al borrar');
+    console.log(e);
+  }
 });
 
 
 // Botón borrar archivo
 $(document).on('click', '.delete-btn', async function () {
+  // Mostramos mensaje de update
+  $('#file-list').hide();
+  $('#empty-msg')
+    .text('Actualizando archivos...')
+    .removeClass('text-danger')
+    .addClass('text-mute')
+    .show();
+
+  // Qué deseamos borrar?
   const fileName = $(this).data('filename');
-  alert(`No implementado: ${fileName}`);
+
+  try {
+    const res = await fetch(`/api/v1/files/${fileName}`, {
+      headers: { 'Authorization': 'Bearer ' + accessToken },
+      method: 'DELETE'
+    });
+
+    if (res.status === 401) {
+      sessionStorage.clear();
+      window.location.href = 'login.html';
+      return;
+    } 
+
+    if (!res.ok) {
+      const e = await res.text();
+      throw new Error(e);
+    }
+
+    // Refrescamos tabla de ficheros
+    setTimeout(() => loadFiles(), 2000);
+
+  } catch (e) {
+    alert('Error al borrar');
+    console.log(e);
+  }
 });
 

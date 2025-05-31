@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-04-30
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -62,8 +61,7 @@ def fetch_and_process_event(block_id: str):
     Retrieval of an event from IOTA using the block_id, then processes it.
     """
     LOG(f"Fetching event from IOTA with block_id: {block_id}", level=Verbosity.HIGH)
-    event = fetch_event(block_id)
-    if not event:
+    if not (event := fetch_event(block_id)):
         raise ValueError("Error feching event.")
 
     process_event(event, block_id)

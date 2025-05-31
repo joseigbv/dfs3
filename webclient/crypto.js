@@ -87,9 +87,9 @@ async function decryptSymmetricKeyFromUser(encryptedKey, iv, recipientPrivateKey
 // Permitimos a otro usuario acceder al fichero, es decir, ciframos la clave
 // simetrica tambien para el usando su clave publica
 // ---
-export async function authorizeUserForFile(metadata, oPrivateKey, oPublicKey, userId, publicKey) {
+export async function authorizeUserForFile(owner, metadata, oPrivateKey, oPublicKey, userId, publicKey) {
   // Primero necesitamos buscar y extraer la clave cifrada del propietario
-  const ownerKey = metadata.authorized_users.find(user => user.user_id === metadata.owner);
+  const ownerKey = metadata.authorized_users.find(user => user.user_id === owner);
   const encryptedKey = base64ToBuffer(ownerKey.encrypted_key);
   const iv = base64ToBuffer(ownerKey.iv);
 
@@ -110,14 +110,12 @@ export async function authorizeUserForFile(metadata, oPrivateKey, oPublicKey, us
     publicKey           // clave publica del receptor (32 bytes)
   );
 
-  // Actualizamos metadatos
-  metadata.authorized_users.push({
+  // Y devolvemos authorized_file
+  return {
      user_id: userId,
      encrypted_key: bufferToBase64(encryptedKey_.key),
      iv: bufferToBase64(encryptedKey_.iv)
-  });
-
-  return metadata;
+  };
 }
 
 
@@ -145,14 +143,13 @@ export async function encryptFile(fileDataPlain, fileName, fileSize, fileType, u
 
   // Construimos estructura de metadatos
   const metadata = {
-    file_id: await sha256Hex(fileDataEncrypted),
     filename: fileName,
-    owner: userId,
+    file_id: await sha256Hex(fileDataEncrypted),
     size: fileSize,
     mimetype: fileType || 'application/octet-stream',
-    tags: ['test', 'dfs3'],
     sha256: await sha256Hex(fileDataPlain),
     iv: bufferToBase64(ivData),
+    tags: ['test', 'dfs3'],
     authorized_users: [
       {
         user_id: userId,
@@ -172,14 +169,11 @@ export async function encryptFile(fileDataPlain, fileName, fileSize, fileType, u
 // Es necesario que los metadatos incluyan la clave empleada, cifrada para el
 // usuario identificado por userId, en posesion de su privateKey y publicKey.
 // ---
-export async function decryptFile(metadata, fileDataEncrypted, userId, privateKey, publicKey) {
+export async function decryptFile(metadata, fileDataEncrypted, userId, privateKey, publicKey, ownerPublicKey) {
   // Extraemos la clave compartida cifrada para el usuario userId
   const user = metadata.authorized_users.find(user => user.user_id === userId);
   const encryptedKey = base64ToBuffer(user.encrypted_key);
   const ivKey = base64ToBuffer(user.iv);
-
-  // TODO: Buscar clave publica del propietario si es distinto de userId
-  const ownerPublicKey = publicKey;
 
   // Desciframos la clave simetrica compartida con la que se cifro el fichero
   const decryptedKey = await decryptSymmetricKeyFromUser(

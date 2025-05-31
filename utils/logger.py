@@ -4,7 +4,6 @@ Description: Simple logging utility with verbosity levels
 Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -55,7 +54,6 @@ def ERR(msg):
     Logs an error message, regardless of the global verbosity setting.
     """
     print(f"[ERR] {msg}")
-    sys.exit(1) # TODO: temporal
 
 
 def ABR(msg):

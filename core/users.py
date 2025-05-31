@@ -6,7 +6,6 @@ Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 License: MIT
 Created: 2025-05-01
 """
-
 # MIT License
 # Copyright (c) 2025 José Ignacio Bravo <nacho.bravo@gmail.com>
 #
@@ -33,18 +32,36 @@ Created: 2025-05-01
 
 import sqlite3
 
+from typing import List
+from contextlib import closing
 from utils.logger import LOG, WRN, ERR, DBG, ABR
 from config.settings import DB_FILE
-from utils.db import row_to_dict
 from cachetools import LRUCache, cached
+from models.base import UserEntry
 from models.events import UserRegisteredEvent, UserJoinedNodeEvent
 
 
 # cache de 100 elementos, se elimina el más antiguo
-_user_cache: LRUCache[str, dict] = LRUCache(maxsize=100)
+_user_cache: LRUCache[str, UserEntry] = LRUCache(maxsize=100)
 
 def invalidate_user_cache(user_id: str):
     _user_cache.pop(user_id, None)
+
+
+def list_users() -> List[UserEntry]:
+    """
+    Returns the list of users from database
+    """
+    with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+        cursor.execute("""
+            SELECT user_id, alias, public_key
+            FROM users;
+        """)
+
+        return [
+            UserEntry(user_id=user_id, alias=alias, public_key=public_key)
+            for user_id, alias, public_key in cursor.fetchall()
+        ]
 
 
 def register(event: UserRegisteredEvent):
@@ -66,15 +83,16 @@ def register(event: UserRegisteredEvent):
     last_seen = tstamp
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (user_id, alias, name, email, public_key, creation_date, last_seen)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, alias, name, email, public_key, creation_date, last_seen))
+        with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                INSERT INTO users (user_id, alias, name, email, public_key, creation_date, last_seen)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, alias, name, email, public_key, creation_date, last_seen))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
+
+        # invalidamos cache (deberia estar en None)
+        invalidate_user_cache(user_id)
 
     except Exception as e:
         ERR(f"Failed to update node from status event: {e}")
@@ -91,61 +109,54 @@ def update(event: UserJoinedNodeEvent):
     last_seen = int(event.timestamp.timestamp())
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE users 
-              SET last_seen = ? 
-              WHERE user_id = ?
-        """, (last_seen, user_id))
+        with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                UPDATE users 
+                  SET last_seen = ? 
+                  WHERE user_id = ?
+            """, (last_seen, user_id))
 
-        if cursor.rowcount == 0:
-            WRN(f"Node {user_id} not found in DB for update.")
+            if cursor.rowcount == 0:
+                WRN(f"Node {user_id} not found in DB for update.")
+            else:
+                LOG(f"Node {user_id} updated with node_status info.")
 
-        else:
-            LOG(f"Node {user_id} updated with node_status info.")
-
-        conn.commit()
-        conn.close()
+            conn.commit()
 
     except Exception as e:
         ERR(f"Failed to update node from status event: {e}")
 
 
-@cached(_user_cache)
-def get(user_id: str) -> dict | None:
+@cached(_user_cache, key=lambda user_id: user_id)
+def get(user_id: str) -> UserEntry | None:
     """
     Retrieves a user by user_id from cache or database.
     """
-    # Consultamos en db si no esta en cache
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    if row:
-        user_data = row_to_dict(cursor, row)
-        conn.close()
-        return user_data
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                SELECT user_id, alias, public_key
+                FROM users 
+                WHERE user_id = ?
+            """, (user_id,))
 
-    # Si llegamos aqui, mal
-    conn.close()
-    return None
-
-
-def exists(user_id: str) -> bool:
-    """
-    Checks whether a user with the given user_id exists in the local database.
-    """
-    return get(user_id) is not None
+            return (
+                UserEntry(user_id=r['user_id'], alias=r['alias'], public_key=r['public_key']) 
+                if (r := cursor.fetchone()) else None
+            )
 
 
 def get_public_key(user_id: str) -> str | None:
     """
     Retrieves the public key of a user by user_id from cache or database.
     """
-    user = get(user_id)
-    if not user:
-        return None
+    return user.public_key if (user := get(user_id)) else None
 
-    return user.get('public_key', None)
+
+def exists(user_id: str) -> bool:
+    """
+    Checks whether a user with the given user_id exists in the local database.
+    """
+    return (user := get(user_id)) is not None
 
