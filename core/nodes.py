@@ -35,6 +35,7 @@ import datetime
 import json
 import getpass
 import sqlite3
+import requests
 
 from contextlib import closing
 from base64 import b64encode
@@ -172,7 +173,7 @@ def save(event: NodeRegisteredEvent):
     software_version = payload.software_version
     uptime = payload.uptime
     total_space = payload.total_space
-    ip = payload.ip
+    ip = str(payload.ip)
     port = payload.port
     tags = ",".join(payload.tags or [])
     version = payload.version
@@ -356,5 +357,5 @@ def sync_node_status():
             fetch_and_process_event(event.block_id)
 
     except Exception as e:
-        ERR(f"Error syncing events: {e}")
+        ABR(f"Error syncing events: {e}")
 

@@ -81,8 +81,8 @@ def create_db():
             port INTEGER NOT NULL,
             tags TEXT,
             creation_date TIMESTAMP NOT NULL, 
-            last_seen TIMESTAMP NOT NULL
-            version INTEGER DEFAULT 1,
+            last_seen TIMESTAMP NOT NULL,
+            version INTEGER DEFAULT 1
         )
         ''')
 
