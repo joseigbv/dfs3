@@ -51,7 +51,7 @@ from utils.crypto import decrypt_private_key
 from utils.logger import LOG, WRN, ERR, DBG, ABR
 from utils.db import row_to_dict
 from config.settings import CONFIG_PATH, DB_FILE, API_PORT, SEED_NODE_URL
-from models.base import NodeEntry
+from models.base import NodeEntry, EventEntry
 from models.events import NodeRegisteredEvent, NodeStatusEvent
 from cachetools import LRUCache, cached
 
