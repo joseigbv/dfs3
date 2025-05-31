@@ -38,7 +38,7 @@ import requests
 from pathlib import Path
 from typing import List, Tuple
 from cachetools import LRUCache, cached
-from utils.logger import LOG, ERR
+from utils.logger import LOG, WRN, ERR, ABR
 from config.settings import STORAGE_DIR, META_DIR, USERS_DIR
 from core import context
 from core.constants import MAX_FILE_SIZE, EC_MIN_SIZE
@@ -91,7 +91,7 @@ def get_file_url_for_node(node_id: str, file_id: str) -> str | None:
     # TODO: Mejorar URL de peticion, para pruebas vale
     ip, port = node["ip"], node["port"]
 
-    return f"http://{ip}:{port}/files/{file_id}/data"
+    return f"http://{ip}:{port}/api/v1/files/{file_id}/data"
 
 
 def clone(node_id: str, file_id: str) -> bool:
@@ -201,12 +201,12 @@ def create(event: FileCreatedEvent):
         if (
             size < EC_MIN_SIZE 
             and should_clone_from(node_id, size) 
-            and context.config['status'] == 'synced'
+            and context.config.get('status') != 'syncing'
         ):
             clone(node_id, file_id)
 
     except Exception as e:
-        ERR(f"Failed to handle file_created event: {e}")
+        ABR(f"Failed to handle file_created event: {e}")
 
 
 def share(event: FileSharedEvent):
@@ -319,7 +319,7 @@ def get_storage_path(file_id: str) -> Path:
     Si no existe la ruta, la crea
     """
     storage_dir = Path(STORAGE_DIR)
-    storage_dir.mkdir(exist_ok=True)
+    storage_dir.mkdir(parents=True, exist_ok=True)
 
     return storage_dir / f"{file_id}.dat"
 
@@ -330,7 +330,7 @@ def get_meta_path(file_id: str) -> Path:
     Si no existe la ruta, la crea
     """
     meta_dir = Path(META_DIR)
-    meta_dir.mkdir(exist_ok=True)
+    meta_dir.mkdir(parents=True, exist_ok=True)
 
     return meta_dir / f"{file_id}.json"
 
@@ -396,7 +396,7 @@ def get_user_dir(user_id: str) -> Path:
     Devuelve la ruta del usuario en el filesystem real, si no existe la crea
     """
     user_dir = Path(USERS_DIR) / user_id
-    user_dir.mkdir(exist_ok=True)
+    user_dir.mkdir(parents=True, exist_ok=True)
 
     return user_dir
 

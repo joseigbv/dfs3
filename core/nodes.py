@@ -300,10 +300,8 @@ def should_clone_from(source_node_id: str, size: int) -> bool:
     Buscamos los tres nodos que tengan espacio suficiente, lleven activos mas de 
     10 minutos y esten levantados desde hace mas de 1 día
     """ 
-    # TODO: Pendiente mejorar esto
-    if not context.config:
-        ERR("Config not found in context.")
-        return False
+    # TODO para pruebas, cualquier nodo vale
+    return context.config["node_id"] != source_node_id
 
     with sqlite3.connect(DB_FILE) as conn, closing(conn.cursor()) as cursor:
         cursor.execute("""

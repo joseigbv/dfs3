@@ -109,6 +109,9 @@ def handle_node_registered(event: BaseEvent, block_id: str):
     """
     Handles a node_status event.
     """
+    # TODO Temporal para pruebas
+    event.payload['version'] = 1
+
     save_node(NodeRegisteredEvent(**event.dict()))
     LOG(f"Node registered from {block_id}")
 
@@ -141,6 +144,13 @@ def handle_file_created(event: BaseEvent, block_id: str):
     """
     Handles a file_created event by storing the event reference and preparing for future replication.
     """
+    # TODO temporal para pruebas, reconvertir eventos
+    if (owner := event.payload.pop('owner', None)):
+       event.payload["user_id"] = owner
+    event.payload.pop('creation_date', None)
+    event.payload.pop('replica_nodes', None)
+    event.payload.pop('version', None)
+
     create_file(FileCreatedEvent(**event.dict()))
     LOG(f"File created from {block_id}")
 
