@@ -95,8 +95,8 @@ async def main():
         # workaround para que el nodo vea su propio mensaje 
         register_mqtt_client()
 
+        LOG("Syncing node status...")
         context.config['status'] = 'syncing'
-        LOG("Syncing status...")
         sync_node_status()
         context.config['status'] = 'synced'
 

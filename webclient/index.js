@@ -472,7 +472,7 @@ $(document).on('click', '.share-btn', async function () {
     openShareModal(fileName, metadata);
 
   } catch (e) {
-    alert('Error al borrar');
+    alert('Error al compartir');
     console.log(e);
   }
 });
@@ -517,7 +517,7 @@ $(document).on('click', '.rename-btn', async function () {
     setTimeout(() => loadFiles(), 2000);
 
   } catch (e) {
-    alert('Error al borrar');
+    alert('Error al renombrar');
     console.log(e);
   }
 });
