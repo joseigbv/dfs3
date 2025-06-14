@@ -35,7 +35,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from api.routes import router
-from config.settings import API_PORT
+from config.settings import API_PORT, SSL_KEYFILE, SSL_CERTFILE
 
 
 # Creamos una instancia de la aplicación
@@ -48,5 +48,11 @@ def start_api():
     """
     Starts the dfs3 HTTP API server.
     """
-    uvicorn.run("api.server:app", host="0.0.0.0", port=API_PORT, log_level="info")
+    uvicorn.run("api.server:app", 
+        host="0.0.0.0", 
+        port=API_PORT, 
+        ssl_keyfile=SSL_KEYFILE,
+        ssl_certfile=SSL_CERTFILE,
+        log_level="info"
+    )
 

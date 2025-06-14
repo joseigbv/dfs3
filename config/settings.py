@@ -53,31 +53,35 @@ MQTT_TOPIC = getenv("DFS3_MQTT_TOPIC", "dfs3/events")
 DATA_DIR = getenv("DFS3_DATA_DIR", "data")
 
 # Fichero de configuracion node.json
-CONFIG_PATH = getenv("DFS_CONFIG_PATH", path.join(DATA_DIR, "node.json"))
+CONFIG_PATH = getenv("DFS3_CONFIG_PATH", path.join(DATA_DIR, "node.json"))
 
 # Database
-DB_FILE = getenv("DFS_DB_FILE", path.join(DATA_DIR, "dfs3.db"))
+DB_FILE = getenv("DFS3_DB_FILE", path.join(DATA_DIR, "dfs3.db"))
+
+# Certificado TLS
+SSL_KEYFILE = getenv("DFS3_SSL_KEYFILE", path.join(DATA_DIR, "privkey.pem"))
+SSL_CERTFILE = getenv("DFS3_SSL_CERTFILE", path.join(DATA_DIR, "fullchain.pem"))
 
 # Storage dir
-STORAGE_DIR = getenv("DFS_STORAGE_DIR", path.join(DATA_DIR, ".storage"))
+STORAGE_DIR = getenv("DFS3_STORAGE_DIR", path.join(DATA_DIR, ".storage"))
 
 # Meta dir
-META_DIR = getenv("DFS_META_DIR", path.join(DATA_DIR, ".meta"))
+META_DIR = getenv("DFS3_META_DIR", path.join(DATA_DIR, ".meta"))
 
 # Users dir
-USERS_DIR = getenv("DFS_USERS_DIR", path.join(DATA_DIR, ".users"))
+USERS_DIR = getenv("DFS3_USERS_DIR", path.join(DATA_DIR, ".users"))
 
 # Verbosity (LOW=1, MEDIUM=2, HIGH=3)
-LOG_VERBOSITY = getenv("DFS_LOG_VERBOSITY", Verbosity.HIGH)
+LOG_VERBOSITY = getenv("DFS3_LOG_VERBOSITY", Verbosity.HIGH)
 
 # URL de acceso al nodo IOTA usado para las pruebas
 IOTA_NODE_URL = getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/v2/blocks")
 
 # URL de acceso al nodo "seed", usado para sincronizar estado de nodos nuevos
-SEED_NODE_URL = getenv("DFS3_SEED_NODE_URL", "https://iota.dfs3.net/api/v1/events")
+SEED_NODE_URL = getenv("DFS3_SEED_NODE_URL", "https://node0.dfs3.net:8000/api/v1/events")
 
 # Puerto en el que se ejecuta el servicio
-API_PORT = int(getenv("DFS3_API_PORT", 8008))
+API_PORT = int(getenv("DFS3_API_PORT", 8000))
 
 # Cada cuanto actualizamos el estado del nodo
 UPDATE_STATUS_INTERVAL = int(getenv("DFS3_UPDATE_STATUS_INTERVAL", 300))

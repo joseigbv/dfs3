@@ -91,7 +91,7 @@ def get_file_url_for_node(node_id: str, file_id: str) -> str | None:
     # TODO: Mejorar URL de peticion, para pruebas vale
     ip, port = node["ip"], node["port"]
 
-    return f"http://{ip}:{port}/api/v1/files/{file_id}/data"
+    return f"https://{ip}:{port}/api/v1/files/{file_id}/data"
 
 
 def clone(node_id: str, file_id: str) -> bool:
