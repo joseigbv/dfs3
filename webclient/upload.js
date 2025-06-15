@@ -111,7 +111,7 @@ $(function () {
   
       // Redirigimos a pagina principal
       $status.text("Subida completada. Redirigiendo...");
-      setTimeout(() => window.location.href = 'index.html', 2000);
+    //  setTimeout(() => window.location.href = 'index.html', 2000);
 
     } catch(e) {
       $status.hide();

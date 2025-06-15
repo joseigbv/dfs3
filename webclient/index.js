@@ -294,83 +294,10 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
   const fileId = $(this).data('id');
   const fileName = $(this).data('filename');
 
-/*
   try {
-    // Primero buscamos metadatos de fichero
-    const resMeta = await fetch(`/api/v1/files/${fileId}/meta`, {
-      headers: { 'Authorization': 'Bearer ' + accessToken },
-      method: 'GET'
-    });
+    // Para medir rendimiento en descarga
+    performance.mark('start-download');
 
-    if (resMeta.status === 401) {
-      sessionStorage.clear();
-      window.location.href = 'login.html';
-      return;
-    } 
-
-    if (!resMeta.ok) {
-      const e = await resMeta.text();
-      throw new Error(e);
-    }
-
-    const metadata = await resMeta.json();
-
-    // Ahora descargamos datos
-    const resData = await fetch(`/api/v1/files/${fileId}/data`, {
-      headers: { 'Authorization': 'Bearer ' + accessToken },
-      method: 'GET'
-    });
-
-    if (!resData.ok) {
-      const e = await resData.text();
-      throw new Error(e);
-    }
-
-    const blob = await resData.blob();
-    const fileDataEncrypted = new Uint8Array(await blob.arrayBuffer()); 
-
-    // Generalmente esta cifrado por y para nosotros
-    let ownerPublicKey = publicKey;
-
-    // Si no es el caso, obtenemos la clave publica del propietario
-    if (metadata.owner != userId) {
-      const resOwner = await fetch(`/api/v1/users/${metadata.owner}`, {
-        headers: { 'Authorization': 'Bearer ' + accessToken },
-        method: 'GET'
-      });
-
-      // TODO pendiente verificar valor devuelto
-      if (!resOwner.ok) {
-        const e = await resOwner.text();
-        throw new Error(e);
-      }
-
-      // Extraemos la clave publica del owner de fichero
-      const owner = await resOwner.json();
-      ownerPublicKey = base64ToBuffer(owner.public_key);
-    }
-
-    // Desciframos para el propietario
-    const fileData = await decryptFile(
-      metadata, 
-      fileDataEncrypted,  
-      userId, 
-      privateKey, 
-      publicKey,
-      ownerPublicKey
-    ); 
-
-    // Descargamos fichero descifrado con sus metadatos correspondientes
-    // Ojo, usamos el nombre del fichero en la tabla, no de metadatos !!!
-    downloadFile(fileData, fileName, metadata.mimetype);
-
-  } catch (e) {
-    alert('Error al descargar');
-    console.log(e);
-  }
-*/
-
-  try {
     // Primero buscamos metadatos de fichero
     const resFile = await fetch(`/api/v1/files/${fileName}`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
@@ -424,6 +351,11 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
     // Descargamos fichero descifrado con sus metadatos correspondientes
     // Ojo, usamos el nombre del fichero en la tabla, no de metadatos !!!
     downloadFile(fileData, fileName, metadata.mimetype);
+
+    // Calculamos rendimiento y mostramos por consola
+    performance.mark('end-download');
+    performance.measure('download-time', 'start-download', 'end-download');
+    console.log(performance.getEntriesByName('download-time'));
 
   } catch (e) {
     alert('Error al descargar');
