@@ -81,6 +81,9 @@ $(function () {
     $error.text('');
     $status.show(); 
 
+    // Para medir rendimiento, empezamos
+    performance.mark('start-upload');
+
     // encryptFile espera un array de bytes
     const fileDataPlain = new Uint8Array(await file.arrayBuffer());
 
@@ -101,20 +104,11 @@ $(function () {
       // TODO: Pendiente integrar con API REST
       await uploadFile(metadata, fileDataEncrypted);
 
-/*
-      // Añadimos nuestro usuario
-      const authorizedUser = await authorizeUserForFile(
-        userId,         // Owner del fichero (nosotros)
-        metadata, 	// Metadatos del fichero a autorizar
-        privateKey, 	// Clave privada del propietario
-        publicKey, 	// Clave publica del propietario
-        userId, 	// Id del destinatario
-        publicKey	// Clave publica del destinatario
-      );
-
-      metadata['authorized_users'].push(authorizedUser);
-*/
-
+      // Para medir rendimiento, terminamos
+      performance.mark('end-upload');
+      performance.measure('upload-time', 'start-upload', 'end-upload');
+      console.log(performance.getEntriesByName('upload-time'));
+  
       // Redirigimos a pagina principal
       $status.text("Subida completada. Redirigiendo...");
       setTimeout(() => window.location.href = 'index.html', 2000);
