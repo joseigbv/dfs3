@@ -78,10 +78,10 @@ LOG_VERBOSITY = getenv("DFS3_LOG_VERBOSITY", Verbosity.HIGH)
 IOTA_NODE_URL = getenv("DFS3_IOTA_NODE_URL", "https://iota.dfs3.net/api/core/v2/blocks")
 
 # URL de acceso al nodo "seed", usado para sincronizar estado de nodos nuevos
-SEED_NODE_URL = getenv("DFS3_SEED_NODE_URL", "https://node0.dfs3.net:8000/api/v1/events")
+SEED_NODE_URL = getenv("DFS3_SEED_NODE_URL", "https://node.dfs3.net/api/v1/events")
 
 # Puerto en el que se ejecuta el servicio
-API_PORT = int(getenv("DFS3_API_PORT", 8000))
+API_PORT = int(getenv("DFS3_API_PORT", 443))
 
 # Cada cuanto actualizamos el estado del nodo
 UPDATE_STATUS_INTERVAL = int(getenv("DFS3_UPDATE_STATUS_INTERVAL", 300))
