@@ -18,7 +18,7 @@ const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
 // ---
 $(function () {
   // Hemos seleccionado nodo backend?
-  if (!backendUrl) {
+  if (!backendUrl && window.location.origin === "https://node.dfs3.net") {
     window.location.href = 'selector.html';
     return;
   }

@@ -226,8 +226,8 @@ async def try_fetch_from_node(node_id: str, file_id: str) -> AsyncIterator[bytes
     """
     if (url := get_file_url_for_node(node_id, file_id)):
         try:
-            # TODO ajustar timeout
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            # TODO ajustar timeout, volver a poner verify=True
+            async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
                 async with client.stream("GET", url) as response:
                     if response.status_code == 200:
                         async for chunk in response.aiter_bytes():
