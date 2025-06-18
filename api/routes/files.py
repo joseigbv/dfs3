@@ -35,6 +35,7 @@ import json
 import asyncio
 import aiofiles
 import httpx
+import time
 
 from datetime import datetime
 from pathlib import Path as OsPath
@@ -42,8 +43,9 @@ from typing import List, AsyncIterator
 from pydantic import ValidationError, constr, conint
 from fastapi import APIRouter, HTTPException, Depends, File, Form, UploadFile, Path, Body, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from utils.time import iso_now
-from utils.logger import LOG, ERR
+from utils.logger import LOG, ERR, DBG, ABR
 from models.base import FileEntry
 from core.auth import require_auth
 from core.constants import MAX_FILE_SIZE, RE_USER_ID, RE_FILE_ID, RE_FILENAME
@@ -99,6 +101,10 @@ async def api_upload_file(
     Receives an encrypted file and its associated metadata, stores the file in the local storage directory,
     and emits a file_created event for later processing by the system.
     """
+
+    # Para medir tiempos de subida, inicio
+    start = time.monotonic()
+
     try:
         # Aqui metadata viene como un string json
         meta = UploadFileMetadata.parse_raw(metadata)
@@ -142,6 +148,10 @@ async def api_upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error sending event"
         )
+
+    # Para medir tiempos de subida, fin
+    elapsed = time.monotonic() - start
+    DBG(f"Total uploading time: {elapsed:.2f}s")
 
     return StatusFileResponse(status="stored")
 
@@ -264,7 +274,7 @@ async def stream_and_store(source_stream: AsyncIterator[bytes], local_path: OsPa
         ERR(f"Error sending file_replicated event for {file_id}")
 
 
-async def file_streamer(path, chunk_size=8192):
+async def file_streamer(path, chunk_size=65536):
     """
     Descarga de fichero por bloques, implementado por problemas de rendimiento
     Mejora la velocidad de 15s a 270ms (descontando registro IOTA)
@@ -286,6 +296,10 @@ async def api_download_file(
     Descarga un fichero cifrado identificado por filename y devuelve los metadatos 
     necesarios para su descifrado como cabeceras http
     """
+
+    # Para medir tiempos de descarga, inicio
+    start = time.monotonic()
+
     try:
         # Validamos que el fichero realmente exista
         _, metadata = get_metadata_by_name(user_id, filename)
@@ -336,20 +350,6 @@ async def api_download_file(
 
     encrypted_key, iv_key = result
 
-    # Construimos el payload del evento a partir de la peticion api
-    payload_dict = {
-        "user_id": user_id,
-        "file_id": file_id,
-        "filename": filename
-    }
-
-    # Publicamos evento de auditoria
-    if not (block_id := send_file_accessed_event(payload_dict)):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error sending event"
-        )
-
     # Tanto si tenemos el fichero, como si hay que pedirlo, misma cabecera
     headers={
         "Content-Disposition": f'attachment; filename="{filename}"',
@@ -364,14 +364,37 @@ async def api_download_file(
         "X-DFS3-IV-Key": iv_key
     }
 
+    def on_close():
+        """
+        A traves de este manejador, conseguimos reducir los tiempos de descarga
+        al no tener que esperar a la publicación del evento en IOTA
+        """
+        elapsed = time.monotonic() - start
+        DBG(f"Total downloading time: {elapsed:.2f}s")
+
+        # Construimos el payload del evento a partir de la peticion api
+        payload_dict = {
+            "user_id": user_id,
+            "file_id": file_id,
+            "filename": filename
+        }
+
+        # Publicamos evento de auditoria, TODO aqui no deberia ir una HTTPException
+        if not (block_id := send_file_accessed_event(payload_dict)):
+            DBG(f"Error sending file_access event")
+
     # Ahora devolvemos datos si los tenemos en local
     storage_path = get_storage_path(file_id)
     if storage_path.is_file():
-        return StreamingResponse(
+        response = StreamingResponse(
             file_streamer(storage_path),
             media_type="application/octet-stream",
             headers=headers
         )
+
+        # Para calcular tiempo de descarga
+        response.background = BackgroundTask(on_close)
+        return response
 
     # No esta en local, vamos a probar con las replicas
     if not (replica_nodes := metadata.get("replica_nodes")):
@@ -395,11 +418,15 @@ async def api_download_file(
                     t.cancel()
 
             # Actuamos como proxy, guardando una copia local
-            return StreamingResponse(
+            response = StreamingResponse(
                 stream_and_store(stream, storage_path, file_id),
                 media_type="application/octet-stream",
                 headers=headers
             )
+
+            # Para calcular tiempo de descarga
+            response.background = BackgroundTask(on_close)
+            return response
 
     # si llegamos aqui, mal
     raise HTTPException(

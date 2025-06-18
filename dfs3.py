@@ -36,6 +36,7 @@ import asyncio
 from utils.logger import LOG, WRN, ERR, DBG
 from config.settings import UPDATE_STATUS_INTERVAL
 from core import context
+from core.constants import SOFTWARE_VERSION
 from core.db_init import create_db
 from core.nodes import init_or_load_node, sync_node_status
 from core.events import send_node_registered_event, send_node_status_event
@@ -56,14 +57,14 @@ def show_banner():
 
     """
 
-    print(r"""
+    print(fr"""
       _  __     _____ 
    __| |/ _|___|___ / 
   / _` | |_/ __| |_ \ 
  | (_| |  _\__ \___) |
   \__,_|_| |___/____/ 
                              
-  dfs3 0.1 - Distributed File Storage System for IoT with Blockchain
+  {SOFTWARE_VERSION} - Distributed File Storage System for IoT with Blockchain
   Author: José Ignacio Bravo <nacho.bravo@gmail.com>
 
   """)
