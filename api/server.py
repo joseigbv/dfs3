@@ -34,13 +34,38 @@ import uvicorn
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config.settings import API_PORT, SSL_KEYFILE, SSL_CERTFILE
 
 
 # Creamos una instancia de la aplicación
 app = FastAPI()
+
+# Permitir origen cruzado desde el frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://node.dfs3.net"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[
+        "X-DFS3-File-ID",
+        "X-DFS3-Owner",
+        "X-DFS3-Size",
+        "X-DFS3-IV",
+        "X-DFS3-SHA256",
+        "X-DFS3-Mimetype",
+        "X-DFS3-Encrypted-Key",
+        "X-DFS3-IV-Key",
+        "X-DFS3-Public-Key",
+    ]
+)
+
+# Configuracón de rutas
 app.include_router(router, prefix="/api/v1")
+
+# Permitimos la descarga de contenido estático
 app.mount("/", StaticFiles(directory="webclient", html=True), name="static")
 
 

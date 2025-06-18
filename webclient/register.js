@@ -3,6 +3,12 @@ import { generateKeys } from './crypto.js';
 
 
 // ---
+// Global
+// ---
+const backendUrl = localStorage.getItem("backend_url") || '';
+
+
+// ---
 // Guarda claves en localStorage
 // ---
 async function saveUserKeysToStorage(userId, alias, publicKey, privateKey, password) {
@@ -78,7 +84,7 @@ $(function () {
         public_key: bufferToBase64(publicKey)
       };
 
-      const response = await fetch('/api/v1/auth/register', {
+      const response = await fetch(`${backendUrl}/api/v1/auth/register`, {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         body: JSON.stringify(user)

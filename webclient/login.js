@@ -7,20 +7,32 @@ etc.sha512Sync = sha512;
 
 
 // ---
+// Globales
+// ---
+const backendUrl = localStorage.getItem("backend_url") || '';
+const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
+
+
+// ---
 // main
 // ---
 $(function () {
-  const $form = $('#login-form');
-  const $select = $('#user-select');
-  const $error = $('#error-msg');
-  const $status = $('#upload-status');
+  // Hemos seleccionado nodo backend?
+  if (!backendUrl) {
+    window.location.href = 'selector.html';
+    return;
+  }
 
   // Hay usuarios o registramos?
-  const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
   if (Object.keys(users).length === 0) {
     window.location.href = 'register.html';
     return;
   }
+
+  const $form = $('#login-form');
+  const $select = $('#user-select');
+  const $error = $('#error-msg');
+  const $status = $('#upload-status');
 
   // Llenar el selector de usuarios (alias + user_id)
   for (const [userId, user] of Object.entries(users)) {
@@ -55,7 +67,7 @@ $(function () {
       sessionStorage.setItem('private_key', bufferToBase64(privateKey));
 
       // Iniciamos el desafio / respuesta enviando nuestro user_id 
-      const challengeRes = await fetch('/api/v1/auth/challenge', {
+      const challengeRes = await fetch(`${backendUrl}/api/v1/auth/challenge`, {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         body: JSON.stringify({ user_id: userId })
@@ -67,7 +79,7 @@ $(function () {
       // Capturamos la respuesta y la firmamos con nuestra clave privada
       const { challenge } = await challengeRes.json();
       const signature = await sign(toBytes(challenge), privateKey);
-      const verifyRes = await fetch('/api/v1/auth/verify', {
+      const verifyRes = await fetch(`${backendUrl}/api/v1/auth/verify`, {
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         body: JSON.stringify({ user_id: userId, signature: bufferToBase64(signature) })

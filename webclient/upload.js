@@ -11,6 +11,7 @@ const userId = sessionStorage.getItem('active_user_id') || '';
 const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
 const currentUser = users[userId] ?? {};
 const publicKey = base64ToBuffer(currentUser.public_key || '');
+const backendUrl = localStorage.getItem("backend_url") || '';
 
 
 // ---
@@ -27,7 +28,7 @@ async function uploadFile(metadata, fileDataEncrypted) {
   formData.append('metadata', JSON.stringify(metadata));
 
   // Enviamos a la api
-  const response = await fetch('/api/v1/files', {
+  const response = await fetch(`${backendUrl}/api/v1/files`, {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     method: 'POST',
     body: formData
@@ -111,7 +112,7 @@ $(function () {
   
       // Redirigimos a pagina principal
       $status.text("Subida completada. Redirigiendo...");
-    //  setTimeout(() => window.location.href = 'index.html', 2000);
+      setTimeout(() => window.location.href = 'index.html', 2000);
 
     } catch(e) {
       $status.hide();

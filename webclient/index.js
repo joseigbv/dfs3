@@ -12,6 +12,7 @@ const userId = sessionStorage.getItem('active_user_id') || '';
 const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
 const currentUser = users[userId] ?? {};
 const publicKey = base64ToBuffer(currentUser.public_key || '');
+const backendUrl = localStorage.getItem("backend_url") || '';
 
 
 // ---
@@ -61,7 +62,7 @@ async function loadFiles() {
 
   $('#file-list').empty();
 
-  const res = await fetch('/api/v1/files', { 
+  const res = await fetch(`${backendUrl}/api/v1/files`, { 
     headers: { 'Authorization': 'Bearer ' + accessToken },
     method: 'GET'
   });
@@ -150,7 +151,7 @@ async function handleShareConfirmation(filename, metadata) {
       destPublicKey   // Clave publica del destinatario
     );
 
-    const res = await fetch(`/api/v1/files/share`, {
+    const res = await fetch(`${backendUrl}/api/v1/files/share`, {
       headers: { 
         'Authorization': 'Bearer ' + accessToken,
         'Content-Type': 'application/json'
@@ -187,7 +188,7 @@ async function handleShareConfirmation(filename, metadata) {
 async function openShareModal(filename, metadata) {
   try {
     // Extraemos lista de usuarios
-    const res = await fetch('/api/v1/users', {
+    const res = await fetch(`${backendUrl}/api/v1/users`, {
       headers: { Authorization: 'Bearer ' + accessToken }
     });
 
@@ -245,11 +246,7 @@ function getIconForMimeType(mimetype) {
 // main
 // ---
 $(function () {
-  if (Object.keys(users).length === 0) {
-    window.location.href = 'register.html';
-    return;
-  }
-
+  // Estamos autenticados? 
   if (!userId || !currentUser || !accessToken) {
     sessionStorage.clear();
     window.location.href = 'login.html';
@@ -299,7 +296,7 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
     performance.mark('start-download');
 
     // Primero buscamos metadatos de fichero
-    const resFile = await fetch(`/api/v1/files/${fileName}`, {
+    const resFile = await fetch(`${backendUrl}/api/v1/files/${fileName}`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
       method: 'GET'
     });
@@ -336,7 +333,6 @@ $(document).on('click', '.download-lnk, .download-btn', async function (e) {
 
     // Clave publica del propietario (quien cifro el fichero y dio permisos)
     const ownerPublicKey = base64ToBuffer(resFile.headers.get("X-DFS3-Public-Key"));
-    console.log(ownerPublicKey);
 
     // Desciframos para el propietario
     const fileData = await decryptFile(
@@ -382,7 +378,7 @@ $(document).on('click', '.share-btn', async function () {
 
   try { 
     // Primero buscamos metadatos
-    const resMeta = await fetch(`/api/v1/files/${fileId}/meta`, {
+    const resMeta = await fetch(`${backendUrl}/api/v1/files/${fileId}/meta`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
       method: 'GET'
     });
@@ -425,7 +421,7 @@ $(document).on('click', '.rename-btn', async function () {
   const newName = prompt('Nuevo nombre:', fileName);
 
   try {
-    const res = await fetch(`/api/v1/files/${fileName}`, {
+    const res = await fetch(`${backendUrl}/api/v1/files/${fileName}`, {
       headers: { 
         'Authorization': 'Bearer ' + accessToken,
         'Content-Type': 'application/json'
@@ -469,7 +465,7 @@ $(document).on('click', '.delete-btn', async function () {
   const fileName = $(this).data('filename');
 
   try {
-    const res = await fetch(`/api/v1/files/${fileName}`, {
+    const res = await fetch(`${backendUrl}/api/v1/files/${fileName}`, {
       headers: { 'Authorization': 'Bearer ' + accessToken },
       method: 'DELETE'
     });
