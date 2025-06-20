@@ -108,22 +108,22 @@ Events are published to IOTA and notified via MQTT.
 
 ## User Interface
 
-Screenshot of the select node interface:
+Select node:
 ![Select Node screen](docs/img/select.png)
 
-Screenshot of the register node interface:
+Register user:
 ![Register screen](docs/img/register.png)
 
-Screenshot of the login interface:
+Login:
 ![Login screen](docs/img/login.png)
 
-Screenshot of the main interface:
+Main interface:
 ![List Files screen](docs/img/list.png)
 
-Screenshot of the share file interface:
+Share file:
 ![Share File screen](docs/img/share.png)
 
-Screenshot of the file upload interface:
+File upload:
 ![Upload File screen](docs/img/upload.png)
 
 ---
