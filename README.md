@@ -106,6 +106,19 @@ Events are published to IOTA and notified via MQTT.
 
 ---
 
+## User Interface
+
+Below is a screenshot of the file upload interface:
+
+![Select Node screen](docs/img/select.png)
+![Register screen](docs/img/register.png)
+![Login screen](docs/img/login.png)
+![List Files screen](docs/img/list.png)
+![Share File screen](docs/img/select.png)
+![Upload File screen](docs/img/upload.png)
+
+---
+
 ## Academic Motivation
 
 This project is developed as part of the Final Degree Project in the Bachelor's Degree Adaptation Program in Computer Engineering at UNIR. Its objective is to apply Web 3.0 principles to the design of a distributed storage system oriented toward IoT, with a secure, open, and traceable approach.
