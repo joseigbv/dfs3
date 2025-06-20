@@ -1,4 +1,4 @@
-# dfs3 — Distributed File System Web 3.0
+# dfs3: Distributed File System Web 3.0
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
