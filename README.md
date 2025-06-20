@@ -1,4 +1,4 @@
-# dfs3 — Distributed File System 3.0
+# dfs3 — Distributed File System Web 3.0
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -39,9 +39,18 @@ dfs3/
 Requires Python 3.10+ and pip:
 
 ```bash
-git clone https://github.com/joseigbv/dfs3.git
-cd dfs3
-pip install -r requirements.txt
+# cd /opt
+# git clone https://github.com/joseigbv/dfs3.git
+# cd dfs3
+# pip install -r requirements.txt
+```
+
+## Configuration (dynamic dns, TODO)
+
+```bash
+# certbot certonly --standalone -d node0.dfs3.net
+# ln -s /etc/letsencrypt/live/node0.dfs3.net/fullchain.pem /opt/dfs3/data/
+# ln -s /etc/letsencrypt/live/node0.dfs3.net/privkey.pem /opt/dfs3/data/
 ```
 
 ## Usage
@@ -49,52 +58,83 @@ pip install -r requirements.txt
 ### Initialize node
 
 ```bash
-python main.py
+$ python3 dfs3.py
+      _  __     _____ 
+   __| |/ _|___|___ / 
+  / _` | |_/ __| |_ \ 
+ | (_| |  _\__ \___) |
+  \__,_|_| |___/____/ 
+                             
+  dfs3 0.1 - Distributed File Storage System for IoT with Blockchain
+  Author: José Ignacio Bravo <nacho.bravo@gmail.com>
+
+  
+[LOG] Starting dfs3 system...
+[WRN] Database 'data/dfs3.db' doesn't exist, creating...
+[LOG] Database 'data/dfs3.db' created successfully.
+[LOG] Loading node config...
+Enter new passphrase to protect your private key: [secret]
+Repeat passphrase: [secret]
+Enter a friendly alias for this node: node1
+Enter tags for this node (comma-separated): orangepi, test, node, node1
+[LOG] Syncing node status...
+...
 ```
 
 If this is the first run, you will be asked for a passphrase to protect your private key. A `node.json` configuration file will be generated.
 
-### Upload a file (REST client, TODO)
+### Download a file (REST client, TODO)
 
 ```bash
-curl -X POST http://localhost:8000/files \
-  -F "file=@document.pdf" \
-  -F "filename=document.pdf"
+$ curl -H "Authorization: Bearer a1b2c3..." https://node0.dfs3.net:3000/api/v1/files/test.txt
 ```
 
 ## System Events
 
-- `node_registered`: New node joined the network
-- `file_created`: New file made available
-- `file_shared`: File shared with another user
-- `node_status`: Periodic heartbeat from the node
+- `node_registered`: New node joined the network. Includes metadata such as public key, alias, total storage, and software version.
+- `node_status`: Periodic heartbeat from the node, containing dynamic information like uptime, available space, and IP address.
+- `file_created`: New file made available in the system. Includes metadata, replication strategy, and fragment assignment.
+- `file_shared`: File shared with another user. The recipient is authorized and a virtual entry is created in their namespace.
+- `file_replicated`: A node has successfully replicated a file fragment and confirms storage by emitting this event.
+- `file_deleted`: A file or virtual entry has been removed from the system.
+- `file_renamed`: A virtual entry has been renamed or moved.
+- `file_accessed`: A user accessed a file. Used for audit purposes or future usage analytics.
+- `user_created`: A new user account has been registered, with its public key and associated metadata.
+- `user_joined_node`: A user has joined or linked to a specific node in the network.
 
 Events are published to IOTA and notified via MQTT.
 
 ---
 
-## Motivación académica
+## Academic Motivation
 
-Este proyecto se desarrolla como parte del Trabajo de Fin de Grado en Ingeniería Informática, con el objetivo de aplicar principios de la Web 3.0 al diseño de un sistema de almacenamiento distribuido orientado a IoT, bajo un enfoque seguro, abierto y trazable.
+This project is developed as part of the Final Degree Project in the Bachelor's Degree Adaptation Program in Computer Engineering at UNIR. Its objective is to apply Web 3.0 principles to the design of a distributed storage system oriented toward IoT, with a secure, open, and traceable approach.
 
 ---
 
-## Referencias
+## References
 
 - [IPFS Whitepaper](https://ipfs.io/ipfs/Qm.../whitepaper.pdf)
 - [Filecoin Spec](https://spec.filecoin.io)
+- [IOTA Whitepaper](https://files.iota.org/papers/whitepaper.pdf)
+- [IOTA Wiki](https://wiki.iota.org)
+- [IOTA SDK (GitHub)](https://github.com/iotaledger/iota-sdk)
+- [IOTA Smart Contracts - Wasp](https://wiki.iota.org/smart-contracts/overview/)
+- [Hornet Node Software](https://github.com/iotaledger/hornet)
+- [IOTA Identity Framework](https://wiki.iota.org/identity/overview/)
 - [Cardano Research](https://iohk.io/en/research/)
 - [Erasure Coding IEEE Paper](https://doi.org/10.1109/TIT.2010.2054295)
 
 ---
 
-## Licencia
+## License
 
-Este proyecto está bajo licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más información.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
 
 ---
 
-## Contacto
+## Contact
 
-Desarrollado por **José Ignacio Bravo Vicente**  
-Contacto: [nacho.bravo@gmail.com]
+Developed by **José Ignacio Bravo Vicente**  
+Contact: [nacho.bravo@gmail.com](mailto:nacho.bravo@gmail.com)
+

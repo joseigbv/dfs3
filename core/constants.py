@@ -41,22 +41,17 @@ class Verbosity(IntEnum):
     HIGH = 3
     DEBUG = 4
 
-
 # Lista global de tipos de eventos válidos en dfs3
 EV_USER_REGISTERED = "user_registered"
 EV_USER_JOINED_NODE = "user_joined_node"
 EV_NODE_REGISTERED = "node_registered"
 EV_NODE_STATUS = "node_status"
 EV_FILE_CREATED = "file_created"
-EV_FILE_DELETED = "file_deleted"
-EV_FILE_SHARED = "file_shared"
-EV_FILE_COPIED = "file_copied"
-EV_FILE_REPLICATED = "file_replicated"
-EV_FILE_RENAMED = "file_renamed"
 EV_FILE_ACCESSED = "file_accessed"
-EV_FILE_DELETED = "file_deleted"
-EV_FILE_RENAMED = "file_renamed"
+EV_FILE_SHARED = "file_shared"
 EV_FILE_REPLICATED = "file_replicated"
+EV_FILE_RENAMED = "file_renamed"
+EV_FILE_DELETED = "file_deleted"
 
 VALID_EVENT_TYPES = {
     EV_USER_REGISTERED,
@@ -64,33 +59,28 @@ VALID_EVENT_TYPES = {
     EV_NODE_REGISTERED, 
     EV_NODE_STATUS,
     EV_FILE_CREATED,
-    EV_FILE_DELETED,
+    EV_FILE_ACCESSED,
     EV_FILE_SHARED,
-    EV_FILE_COPIED,
     EV_FILE_REPLICATED,
     EV_FILE_RENAMED,
-    EV_FILE_ACCESSED,
-    EV_FILE_DELETED,
-    EV_FILE_RENAMED,
-    EV_FILE_REPLICATED
+    EV_FILE_DELETED
 }
 
 # Version de software y de protocolo
-SOFTWARE_VERSION = "dfs3-node/0.3.1" 
+SOFTWARE_VERSION = "dfs3-node/0.3.2" 
 PROTOCOL = "dfs3/1.0"
 
 # Otras expresiones regulares para validacion
 RE_BLOCK_ID: str = r"^0x[a-f0-9]{64}$"
 RE_USER_ID: str = r"^[a-f0-9]{64}$"
-RE_ALIAS: str = r"^[a-z0-9_-]{3,20}$"
+RE_ALIAS: str = r"^(?=.{1,64}$)[a-z](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z](?:[a-z0-9_-]*[a-z0-9])?)?$"
 RE_FILE_ID: str = RE_USER_ID
 RE_NODE_ID: str = RE_USER_ID
-#RE_FILENAME: str = r"^[\w\-. ]{1,100}$" # mas restrictiva 
-RE_FILENAME: str = r"^(?!.*[\\/:*?\"<>|])[^./][^\\/:*?\"<>|\r\n]{1,254}$" # TODO revisar seguridad
+RE_FILENAME: str = r"^[^./\\:*?\"<>|\r\n][^\\/:*?\"<>|\r\n]{0,254}$"
 RE_TAG: str = r"[\w\-\.]{1,20}"
 RE_BASE64: str = r"^[A-Za-z0-9+/]{4,}={0,2}$"
-RE_MIMETYPE: str = r"^[a-zA-Z0-9!#$&^_-]+/[a-zA-Z0-9!#$&^_.+-]+$"
-RE_HOSTNAME: str = r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$"
+RE_MIMETYPE: str = r"^[a-zA-Z0-9]+/[a-zA-Z0-9]+$"
+RE_HOSTNAME: str = r"^(?=.{1,255}$)([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$"
 
 # Expresión regular para validar un SHA-256 en formato hexadecimal con prefijo 0x
 SHA256_HEX_PATTERN = re.compile(RE_BLOCK_ID)
