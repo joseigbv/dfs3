@@ -91,6 +91,8 @@ $ curl -H "Authorization: Bearer a1b2c3..." https://node0.dfs3.net:3000/api/v1/f
 
 ## System Events
 
+Events are published to IOTA and notified via MQTT.
+
 - `node_registered`: New node joined the network. Includes metadata such as public key, alias, total storage, and software version.
 - `node_status`: Periodic heartbeat from the node, containing dynamic information like uptime, available space, and IP address.
 - `file_created`: New file made available in the system. Includes metadata, replication strategy, and fragment assignment.
@@ -101,8 +103,6 @@ $ curl -H "Authorization: Bearer a1b2c3..." https://node0.dfs3.net:3000/api/v1/f
 - `file_accessed`: A user accessed a file. Used for audit purposes or future usage analytics.
 - `user_created`: A new user account has been registered, with its public key and associated metadata.
 - `user_joined_node`: A user has joined or linked to a specific node in the network.
-
-Events are published to IOTA and notified via MQTT.
 
 ---
 
