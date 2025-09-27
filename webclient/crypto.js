@@ -1,4 +1,4 @@
-import { sha512 } from 'https://esm.sh/@noble/hashes/sha512';
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
 import { etc, sign, getPublicKey, utils } from "https://esm.sh/@noble/ed25519";
 import { DFS3_USERS, base64ToBuffer, bufferToBase64, sha256Hex } from './common.js';
 

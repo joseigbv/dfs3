@@ -67,7 +67,7 @@ VALID_EVENT_TYPES = {
 }
 
 # Version de software y de protocolo
-SOFTWARE_VERSION = "dfs3-node/0.3.2" 
+SOFTWARE_VERSION = "dfs3-node/0.3.3" 
 PROTOCOL = "dfs3/1.0"
 
 # Otras expresiones regulares para validacion

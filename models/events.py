@@ -58,7 +58,6 @@ from core.constants import (
     EV_FILE_CREATED,
     EV_FILE_SHARED,
     EV_FILE_DELETED,
-    EV_FILE_COPIED,
     EV_FILE_REPLICATED,
     EV_FILE_RENAMED,
     EV_FILE_ACCESSED,
