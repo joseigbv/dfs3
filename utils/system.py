@@ -33,6 +33,8 @@ import shutil
 import socket
 import requests
 
+from utils.logger import LOG, WRN, ERR, DBG
+
 
 def get_total_disk_space(path: str = "/") -> int:
     """
