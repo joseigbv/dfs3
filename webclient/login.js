@@ -1,5 +1,5 @@
-import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512';
-import { etc, sign } from "https://esm.sh/@noble/ed25519";
+import { sha512 } from 'https://esm.sh/@noble/hashes@1.8.0/sha512';
+import { etc, sign } from "https://esm.sh/@noble/ed25519@2.3.0";
 import { DFS3_USERS, toBytes, base64ToBuffer, bufferToBase64, unlockPrivateKey } from './common.js';
 
 // Error: etc.sha512Sync not set
@@ -18,7 +18,8 @@ const users = JSON.parse(localStorage.getItem(DFS3_USERS) || '{}');
 // ---
 $(function () {
   // Hemos seleccionado nodo backend?
-  if (!backendUrl && window.location.origin === "https://node.dfs3.net") {
+  if (window.location.origin === "https://node.dfs3.net") {
+  //if (!backendUrl && window.location.origin === "https://node.dfs3.net") {
     window.location.href = 'selector.html';
     return;
   }
