@@ -131,8 +131,8 @@ File upload:
 ## Documentation 
 
 - [TFG](docs/BRAVO_VICENTE_JOSE_IGNACIO_TFG.pdf)
-- [Presentación](docs/Defensa - Presentación.pdf)
-- [Demo](docs/Defensa - Demo.mp4)
+- [Presentación](docs/Presentación.pdf)
+- [Demo](docs/Demo.mp4)
 - [Resumen](docs/Resumen.mp4)
 
 ---
@@ -168,5 +168,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 Developed by **José Ignacio Bravo Vicente**  
 Contact: [nacho.bravo@gmail.com](mailto:nacho.bravo@gmail.com)
+
 
 
