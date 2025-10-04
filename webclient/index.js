@@ -193,12 +193,16 @@ async function openShareModal(filename, metadata) {
     });
 
     const users = await res.json();
+    console.log(users);
 
     // Cargamos usuarios en cuadro de dialogo
     const select = $('#user-select');
     select.empty().append('<option selected disabled>Elige un alias...</option>');
     users.forEach(user => {
-      select.append(`<option value="${user.user_id}" data-pubkey="${user.public_key}">${user.alias} (${user.public_key.slice(0, 18)}...)</option>`);
+      //if (['nacho.bravo', 'juan.garcia', 'daniel.perez'].includes(user.alias)) { 
+        select.append(`<option value="${user.user_id}" data-pubkey="${user.public_key}">
+          ${user.alias} (${user.public_key.slice(0, 18)}...)</option>`);
+      //}
     });
 
     $('#share-error').addClass('d-none').text('');
@@ -270,6 +274,7 @@ $(function () {
   // Botón cerrar sesión (limpia storage y redirige)
   $('#logout-btn').click(() => {
     sessionStorage.clear();
+    localStorage.setItem("backend_url", '');
     window.location.href = 'login.html'; 
   });
 
