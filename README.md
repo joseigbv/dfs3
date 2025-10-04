@@ -128,6 +128,15 @@ File upload:
 
 ---
 
+## Documentation 
+
+- [TFG](docs/BRAVO_VICENTE_JOSE_IGNACIO_TFG.pdf)
+- [Presentación](docs/Defensa - Presentación.pdf)
+- [Demo](docs/Defensa - Demo.mp4)
+- [Resumen](docs/Resumen.mp4)
+
+---
+
 ## Academic Motivation
 
 This project is developed as part of the Final Degree Project in the Bachelor's Degree Adaptation Program in Computer Engineering at UNIR. Its objective is to apply Web 3.0 principles to the design of a distributed storage system oriented toward IoT, with a secure, open, and traceable approach.
@@ -159,4 +168,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 Developed by **José Ignacio Bravo Vicente**  
 Contact: [nacho.bravo@gmail.com](mailto:nacho.bravo@gmail.com)
+
 
